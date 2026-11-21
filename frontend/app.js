@@ -510,31 +510,24 @@ function refresh()
 function renderList()
 {
 	const el = $( '#list' );
-
 	if( areaTracks().length === 0 )
 	{
-		el.innerHTML =
-			'<p class="hint">No tracks in this area yet. Press Start, walk, then Stop. Paths appear in orange→red where several walks overlap.</p>';
+		el.innerHTML = '<p class="hint">No tracks in this area yet. Press Start, walk, then Stop. Paths appear in orange→red where several walks overlap.</p>';
 		return;
-
 	}
-	el.innerHTML = '';
 
-	const list = areaTracks().slice().reverse();
+	el.innerHTML = '';
+	const list   = areaTracks().slice().reverse();
 
 	for( const t of list )
 	{
-		const row = document.createElement( 'div' );
-
+		const row     = document.createElement( 'div' );
 		row.className = 'track';
 
-		const cb = document.createElement( 'input' );
-
+		const cb   = document.createElement( 'input' );
 		cb.type    = 'checkbox';
-		cb.checked = t.visible !== false;
-
+		cb.checked = ( t.visible !== false );
 		cb.setAttribute( 'aria-label', 'Show ' + t.name + ' on map' );
-
 		cb.className = 'track-check';
 
 		const info     = document.createElement( 'div' );
@@ -571,52 +564,46 @@ function renderList()
 		mv.onclick = () =>
 		{
 			const others = areas.filter( ( a ) => a.id !== settings.area );
-
 			if( others.length === 0 )
 			{
 				return toast( 'Create another area first' );
 			}
 
-			const s = prompt(
-				'Move this track to which area?\n' +
-				others.map( ( a, i ) => i + 1 + ') ' + a.name ).join( '\n' )
-			);
-
-			const a = others[ +s - 1 ];
+			const s = prompt( 'Move this track to which area?\n' + others.map( ( a, i ) => ( i + 1 ) + ') ' + a.name ).join( '\n' ) );
+			const a = others[ ( +s ) - 1 ];
 
 			if( a !== undefined )
 			{
 				t.area    = a.id;
 				t.updated = Date.now();
-
 				autoSync();
 				save( KEY, tracks );
 				refresh();
 				toast( 'Moved to ' + a.name );
 			}
 		};
+
 		cb.onchange = () =>
 		{
 			t.visible = cb.checked;
-
 			save( KEY, tracks );
 			refresh();
 		};
-		z.onclick = () =>
-			map.fitBounds( L.latLngBounds( t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) ), { padding: [ 30, 30 ] } );
+
+		z.onclick = () => map.fitBounds( L.latLngBounds( t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) ), { padding: [ 30, 30 ] } );
+
 		d.onclick = () =>
 		{
 			if( confirm( 'Delete this track?' ) === true )
 			{
 				tombstone( 'track', t.id );
-
 				tracks = tracks.filter( ( x ) => x !== t );
-
 				save( KEY, tracks );
 				refresh();
 				autoSync();
 			}
 		};
+
 		el.appendChild( row );
 	}
 }
