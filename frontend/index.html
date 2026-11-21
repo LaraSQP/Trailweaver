@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f4f3a">
+<title>Trailweaver</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+
+<style>
+  :root
+  {
+    --bg: #f6f4ee;
+    --ink: #1f2a22;
+    --mute: #6b766d;
+    --green: #2f4f3a;
+    --red: #b3402a;
+    --line: #dcd8cb;
+  }
+
+  *
+  {
+    box-sizing: border-box;
+  }
+
+  html, body
+  {
+    height: 100%;
+    margin: 0;
+    font: 15px/1.4 system-ui, -apple-system, Segoe UI, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+  }
+
+  #app
+  {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* min-height 0 lets the map shrink inside the flex column. */
+  #map
+  {
+    flex: 1;
+    min-height: 0;
+  }
+
+  #panel
+  {
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    max-height: 52%;
+    overflow: auto;
+  }
+
+  .row
+  {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .stats
+  {
+    display: flex;
+    gap: 16px;
+    font-variant-numeric: tabular-nums;
+    color: var(--mute);
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .stats b
+  {
+    display: block;
+    color: var(--ink);
+    font-size: 17px;
+  }
+
+  #rec
+  {
+    flex: 1;
+    border: 0;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--green);
+  }
+
+  /* app.js adds the class "on" while recording. */
+  #rec.on
+  {
+    background: var(--red);
+  }
+
+  button.sm
+  {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  .tabs
+  {
+    display: flex;
+    gap: 4px;
+    margin: 12px 0 8px;
+  }
+
+  .tabs button
+  {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    padding: 8px;
+    border-bottom: 2px solid var(--line);
+    color: var(--mute);
+    font-size: 14px;
+  }
+
+  .tabs button.active
+  {
+    color: var(--green);
+    border-color: var(--green);
+    font-weight: 600;
+  }
+
+  .tab
+  {
+    display: none;
+  }
+
+  .tab.active
+  {
+    display: block;
+  }
+
+  label.s
+  {
+    display: block;
+    margin: 10px 0;
+  }
+
+  label.s span
+  {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--mute);
+  }
+
+  input[type=range]
+  {
+    width: 100%;
+  }
+
+  .track
+  {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .track .n
+  {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .track .n small
+  {
+    display: block;
+    color: var(--mute);
+  }
+
+  .hint
+  {
+    color: var(--mute);
+    font-size: 12.5px;
+  }
+
+  #area
+  {
+    flex: 1;
+    min-width: 0;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  #areaBar
+  {
+    margin-bottom: 10px;
+  }
+
+  /* Hidden and click-through until app.js adds the class "show". */
+  #toast
+  {
+    position: fixed;
+    left: 50%;
+    top: 14px;
+    transform: translateX(-50%);
+    background: #1f2a22;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: .25s;
+    z-index: 2000;
+  }
+
+  #toast.show
+  {
+    opacity: .95;
+  }
+</style>
+</head>
+<body>
+<!-- app.js looks elements up by id; do not rename them without updating it. -->
+<div id="app">
+  <div id="map"></div>
+
+  <div id="panel">
+    <div class="row" id="areaBar">
+      <select id="area" aria-label="Area"></select>
+      <button class="sm" id="aNew">+ New</button>
+      <button class="sm" id="aRen">Rename</button>
+      <button class="sm" id="aDel">Delete</button>
+    </div>
+
+    <div class="stats">
+      <div><b id="sDist">0.00 km</b>distance</div>
+      <div><b id="sTime">0:00</b>time</div>
+      <div><b id="sAcc">–</b>accuracy</div>
+      <div><b id="sPaths">0</b>path km</div>
+    </div>
+
+    <div class="row"><button id="rec">● Start recording</button></div>
+
+    <!-- data-t="x" shows the tab with id "t-x". -->
+    <div class="tabs">
+      <button data-t="tracks" class="active">Tracks</button>
+      <button data-t="paths">Paths</button>
+      <button data-t="data">Data</button>
+    </div>
+
+    <div id="t-tracks" class="tab active"><div id="list"></div></div>
+
+    <div id="t-paths" class="tab">
+      <label class="s"><span>Merge distance (cell size)<b id="vCell"></b></span><input id="cell" type="range" min="5" max="40" step="1"></label>
+      <label class="s"><span>Passes needed to count as a path<b id="vMin"></b></span><input id="minp" type="range" min="2" max="12" step="1"></label>
+      <label class="s"><span>Ignore GPS fixes worse than<b id="vAcc"></b></span><input id="maxacc" type="range" min="8" max="60" step="1"></label>
+      <label class="row" style="margin:8px 0"><input type="checkbox" id="showRaw" checked> Show raw tracks</label>
+      <p class="hint">A segment becomes a path when at least N different walks used it. Lower N or raise the merge distance to see paths sooner; the opposite to be stricter.</p>
+    </div>
+
+    <div id="t-data" class="tab">
+      <div class="row" style="flex-wrap:wrap">
+        <button class="sm" id="exGpx">Export this area (GPX)</button>
+        <button class="sm" id="exAll">Export all areas (GPX)</button>
+        <button class="sm" id="exGeo">Export paths (GeoJSON)</button>
+        <button class="sm" id="imp">Import GPX…</button>
+        <button class="sm" id="demo">Load demo walks</button>
+        <button class="sm" id="wipe">Delete all</button>
+      </div>
+      <input type="file" id="file" accept=".gpx,application/gpx+xml,text/xml" multiple hidden>
+
+      <div style="margin:14px 0 6px"><b>Server sync</b></div>
+      <input id="srvUrl" placeholder="API address (leave empty = api.php on this site)" style="width:100%;padding:8px;margin-bottom:6px;border:1px solid var(--line);border-radius:8px">
+      <input id="srvTok" type="password" placeholder="Secret token from config.php" style="width:100%;padding:8px;margin-bottom:6px;border:1px solid var(--line);border-radius:8px">
+      <div class="row"><button class="sm" id="srvSave">Save &amp; sync</button><button class="sm" id="srvNow">Sync now</button></div>
+      <p class="hint" id="srvStatus">Not configured.</p>
+      <p class="hint">Without server sync, data stays on this device (localStorage). Export regularly. GPS needs HTTPS (or localhost). Keep the screen on while recording: browsers pause GPS in the background.</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Leaflet must load before app.js. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

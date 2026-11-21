@@ -1,0 +1,38 @@
+# --- Secrets (the important part) ---
+# Matches config.php in any folder (backend/config.php); backend/config.example.php has another name, so it stays versioned.
+config.php
+.env
+.env.*
+!.env.example
+
+# --- Database dumps and backups (can contain your tracks or credentials) ---
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+*.orig
+
+# --- Your own GPS data (reveals where you walk and live) ---
+*.gpx
+*.geojson
+# To keep a deliberate sample file, add an exception such as:  !samples/demo.gpx
+
+# --- Logs, including the file cPanel creates when PHP reports errors ---
+*.log
+error_log
+
+# --- Operating system clutter ---
+.DS_Store
+Thumbs.db
+desktop.ini
+..out/
+
+# --- Editor files ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- Only if you add Node tooling later ---
+node_modules/
