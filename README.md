@@ -1,6 +1,8 @@
 # Trailweaver
 
-Trailweaver is an offline-capable web app (PWA) that records GPS tracks on your phone and highlights the paths that emerge where several different walks overlap. Data stays in your browser, with optional sync to your own PHP and MySQL server.
+Trailweaver is a phone-first, offline-capable web app (or Progressive Web App, PWA) that records GPS tracks on your phone and highlights the paths that emerge where several different walks overlap.
+
+Data stays in your browser, with optional sync to your own PHP and MySQL server.
 
 ## Features
 
@@ -13,7 +15,18 @@ Trailweaver is an offline-capable web app (PWA) that records GPS tracks on your 
 - Installable, works offline, map tiles cached as you browse
 - Optional token-protected sync across devices (last write wins)
 
-## Installation
+## Without installation
+
+Open the GitHub Pages address ([https://larasqp.github.io/Trailweaver](https://larasqp.github.io/Trailweaver))  in, e.g., Brave/Chrome on Android and choose Add to Home screen.
+
+> [!CAUTION]
+> In this mode, data is kept in the browser's local storage only.
+> 
+> Clearing site data deletes your tracks, so export GPX regularly if this is important to you.
+
+## With installation
+
+For multi-device sync, install your own server:
 
 1. Upload the contents of `frontend/` to a web folder served over HTTPS.
 2. For sync, upload `backend/api.php` and `backend/config.php` to a PHP 7.4+ server with `pdo_mysql` (same folder as the front end, or enter the full API address in the app).
@@ -21,3 +34,7 @@ Trailweaver is an offline-capable web app (PWA) that records GPS tracks on your 
 4. Copy `backend/config.example.php` to `config.php` and set `TW_TOKEN` (random, 16+ characters) and the `DB_*` values. Never commit it.
 5. Open the site on your phone and choose Install or Add to Home screen.
 6. In the Data tab, enter the same token and tap Save & sync. Tables are created automatically.
+
+## License
+
+**Trailweaver** is released under the [MIT License](LICENSE).
