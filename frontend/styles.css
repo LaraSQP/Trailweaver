@@ -75,7 +75,7 @@ body
 	gap     : 16px;
 }
 
-.statsRow>div
+.statsRow > div
 {
 	flex      : 1;
 	min-width : 0;
@@ -172,23 +172,103 @@ input[type='range']
 
 .track
 {
-	display     : flex;
-	align-items : center;
-	gap         : 8px;
-	padding     : 8px 0;
-	border-bottom: 1px solid var(--line);
+	display               : grid;
+	grid-template-columns : auto minmax(0, 1fr);
+	align-items           : start;
+	gap                   : 8px;
+	padding               : 10px;
+	border: 1px solid var(--line);
+	border-radius : 10px;
+	background    : rgba(255, 255, 255, 0.55);
+	margin-bottom : 8px;
 }
 
-.track .n
+.track-check
+{
+	width        : 18px;
+	height       : 18px;
+	margin       : 2px 0 0;
+	accent-color : #3a6ea5;
+}
+
+.track-info
+{
+	min-width: 0;
+}
+
+.track-heading
+{
+	display     : flex;
+	flex-wrap   : wrap;
+	align-items : baseline;
+	gap         : 2px 8px;
+}
+
+.track-name
+{
+	min-width     : 0;
+	font-weight   : 600;
+	overflow-wrap : anywhere;
+}
+
+.track-date
+{
+	color: var(--mute);
+	font-size: 11px;
+}
+
+.track
+{
+	display               : grid;
+	grid-template-columns : 24px minmax(0, 1fr);
+	align-items           : start;
+	gap                   : 8px;
+	padding               : 10px;
+	border: 1px solid var(--line);
+	border-radius : 10px;
+	background    : rgba(255, 255, 255, 0.55);
+	margin-bottom : 8px;
+}
+
+.track-check
+{
+	width        : 18px;
+	height       : 18px;
+	margin       : 2px 0 0;
+	accent-color : #3a6ea5;
+}
+
+.track-info
+{
+	min-width: 0;
+}
+
+.track-name
+{
+	font-weight   : 600;
+	overflow-wrap : anywhere;
+}
+
+.track-meta
+{
+	color: var(--mute);
+	font-size            : 12px;
+	font-variant-numeric : tabular-nums;
+	margin-top           : 3px;
+}
+
+.track-actions
+{
+	grid-column : 1 / -1;
+	display     : flex;
+	gap         : 6px;
+}
+
+.track-actions button
 {
 	flex      : 1;
 	min-width : 0;
-}
-
-.track .n small
-{
-	display: block;
-	color: var(--mute);
+	padding   : 7px 5px;
 }
 
 .hint

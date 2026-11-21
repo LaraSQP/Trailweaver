@@ -510,48 +510,45 @@ function refresh()
 function renderList()
 {
 	const el = $( '#list' );
+
 	if( areaTracks().length === 0 )
 	{
 		el.innerHTML =
 			'<p class="hint">No tracks in this area yet. Press Start, walk, then Stop. Paths appear in orange→red where several walks overlap.</p>';
 		return;
+
 	}
 	el.innerHTML = '';
-	const list   = areaTracks().slice().reverse();
+
+	const list = areaTracks().slice().reverse();
+
 	for( const t of list )
 	{
-		const row     = document.createElement( 'div' );
+		const row = document.createElement( 'div' );
+
 		row.className = 'track';
 
-		const cb   = document.createElement( 'input' );
+		const cb = document.createElement( 'input' );
+
 		cb.type    = 'checkbox';
 		cb.checked = t.visible !== false;
+
 		cb.setAttribute( 'aria-label', 'Show ' + t.name + ' on map' );
+
 		cb.className = 'track-check';
 
 		const info     = document.createElement( 'div' );
 		info.className = 'track-info';
 
-		const heading     = document.createElement( 'div' );
-		heading.className = 'track-heading';
-
 		const name       = document.createElement( 'div' );
 		name.className   = 'track-name';
 		name.textContent = t.name;
-
-		const date     = document.createElement( 'small' );
-		date.className = 'track-date';
-		if( Number.isFinite( t.start ) === true && t.start > 0 )
-		{
-			date.textContent = new Date( t.start * 1000 ).toLocaleDateString();
-		}
 
 		const meta       = document.createElement( 'div' );
 		meta.className   = 'track-meta';
 		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts';
 
-		heading.append( name, date );
-		info.append( heading, meta );
+		info.append( name, meta );
 
 		const actions     = document.createElement( 'div' );
 		actions.className = 'track-actions';
@@ -574,19 +571,24 @@ function renderList()
 		mv.onclick = () =>
 		{
 			const others = areas.filter( ( a ) => a.id !== settings.area );
+
 			if( others.length === 0 )
 			{
 				return toast( 'Create another area first' );
 			}
+
 			const s = prompt(
 				'Move this track to which area?\n' +
 				others.map( ( a, i ) => i + 1 + ') ' + a.name ).join( '\n' )
 			);
+
 			const a = others[ +s - 1 ];
+
 			if( a !== undefined )
 			{
 				t.area    = a.id;
 				t.updated = Date.now();
+
 				autoSync();
 				save( KEY, tracks );
 				refresh();
@@ -596,6 +598,7 @@ function renderList()
 		cb.onchange = () =>
 		{
 			t.visible = cb.checked;
+
 			save( KEY, tracks );
 			refresh();
 		};
@@ -606,7 +609,9 @@ function renderList()
 			if( confirm( 'Delete this track?' ) === true )
 			{
 				tombstone( 'track', t.id );
+
 				tracks = tracks.filter( ( x ) => x !== t );
+
 				save( KEY, tracks );
 				refresh();
 				autoSync();
