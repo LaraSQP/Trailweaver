@@ -294,6 +294,34 @@ function onVisibility()
 }
 document.addEventListener('visibilitychange', onVisibility);
 
+// Centers on the device position. Works without recording, so it asks for a one-time fix.
+$('#locate').onclick = () =>
+{
+  if (GEO === false)
+  {
+    return toast('Geolocation not supported');
+  }
+  toast('Locating…');
+  navigator.geolocation.getCurrentPosition((p) =>
+  {
+    const ll = [p.coords.latitude, p.coords.longitude];
+    me.setLatLng(ll);
+    if (map.hasLayer(me) === false)
+    {
+      me.addTo(map);
+    }
+    map.setView(ll, Math.max(map.getZoom(), 16));
+  }, onErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+};
+
+// The map is resized after the panel changes height, otherwise Leaflet keeps the old size.
+$('#toggle').onclick = () =>
+{
+  const hidden = $('#panel').classList.toggle('hide');
+  $('#toggle').textContent = (hidden === true) ? '☰' : '✕';
+  setTimeout(() => map.invalidateSize(), 50);
+};
+
 // 3-point moving average to calm GPS jitter; the end points are kept as they are.
 function smooth(pts)
 {
