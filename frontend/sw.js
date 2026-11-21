@@ -3,7 +3,7 @@
 // version of the app shows up on the second launch after an upload.
 
 // Bump SHELL's version to make activate discard old caches.
-const SHELL = 'trailweaver-shell-v2';
+const SHELL = 'trailweaver-shell-v3';
 const TILES = 'trailweaver-tiles-v1';
 
 const ASSETS =
@@ -13,6 +13,7 @@ const ASSETS =
   './app.js',
   './manifest.json',
   './icon.svg',
+  './styles.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css'
 ];
@@ -39,8 +40,8 @@ self.addEventListener('fetch', (e) =>
   e.respondWith((async () =>
   {
     const cache = await caches.open((isTile === true) ? TILES : SHELL);
-    const hit = await cache.match(e.request);
-    const net = fetch(e.request).then((r) =>
+    const hit   = await cache.match(e.request);
+    const net   = fetch(e.request).then((r) =>
     {
       // Opaque responses (cross-origin tiles and scripts) cannot be inspected but can be cached.
       if ((r !== undefined) && ((r.ok === true) || (r.type === 'opaque')))
