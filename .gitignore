@@ -33,6 +33,7 @@ desktop.ini
 .idea/
 *.swp
 *~
+.devCodeTracker/
 
 # --- Only if you add Node tooling later ---
 node_modules/
