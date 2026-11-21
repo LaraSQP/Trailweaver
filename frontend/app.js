@@ -507,6 +507,7 @@ function refresh()
 	renderList();
 }
 
+
 function renderList()
 {
 	const el = $( '#list' );
@@ -535,13 +536,20 @@ function renderList()
 
 		const name       = document.createElement( 'div' );
 		name.className   = 'track-name';
-		name.textContent = t.name;
+		name.textContent = t.name.replace( /^Walk\s+.+$/, 'Walk' );
+
+		const date     = document.createElement( 'div' );
+		date.className = 'track-date';
+		if( ( Number.isFinite( t.start ) === true ) && ( t.start > 0 ) )
+		{
+			date.textContent = new Date( t.start * 1000 ).toLocaleString( [], { dateStyle: 'short', timeStyle: 'short' } );
+		}
 
 		const meta       = document.createElement( 'div' );
 		meta.className   = 'track-meta';
 		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts';
 
-		info.append( name, meta );
+		info.append( name, date, meta );
 
 		const actions     = document.createElement( 'div' );
 		actions.className = 'track-actions';
