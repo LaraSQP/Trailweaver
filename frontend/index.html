@@ -36,6 +36,7 @@
 
   #app
   {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -208,6 +209,35 @@
     margin-bottom: 10px;
   }
 
+  /* Over the map; above Leaflet's own controls (z-index 1000). */
+  #mapBtns
+  {
+    position: absolute;
+    left: 10px;
+    top: calc(10px + env(safe-area-inset-top));
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mapbtn
+  {
+    width: 46px;
+    height: 46px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 22px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .35);
+  }
+
+  #panel.hide
+  {
+    display: none;
+  }
+
   /* Hidden and click-through until app.js adds the class "show". */
   #toast
   {
@@ -236,6 +266,11 @@
 <!-- app.js looks elements up by id; do not rename them without updating it. -->
 <div id="app">
   <div id="map"></div>
+
+  <div id="mapBtns">
+    <button class="mapbtn" id="locate" aria-label="Center on my location">◎</button>
+    <button class="mapbtn" id="toggle" aria-label="Show or hide controls">✕</button>
+  </div>
 
   <div id="panel">
     <div class="row" id="areaBar">
