@@ -3,8 +3,8 @@
 // version of the app shows up on the second launch after an upload.
 
 // Bump SHELL's version to make activate discard old caches.
-const SHELL = 'trailweaver-shell-v7'  ;
-const TILES = 'trailweaver-tiles-v1'  ;
+const SHELL = 'trailweaver-shell-v7';
+const TILES = 'trailweaver-tiles-v1';
 
 const ASSETS =
 	[
@@ -57,8 +57,8 @@ self.addEventListener( 'fetch', ( e ) =>
 	e.respondWith(
 		( async () =>
 		{
-			const cache = await caches.open( isTile === true ? TILES : SHELL )  ;
-			const hit   = await cache.match( e.request )                          ;
+			const cache = await caches.open( isTile === true ? TILES : SHELL );
+			const hit   = await cache.match( e.request );
 			const net   = fetch( e.request )
 				.then( ( r ) =>
 				{
