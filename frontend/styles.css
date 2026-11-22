@@ -1,21 +1,21 @@
 :root
 {
-	--bg: #f6f4ee;
-	--ink: #1f2a22;
-	--mute: #6b766d;
-	--green: #2f4f3a;
-	--red: #b3402a;
-	--line: #dcd8cb;
+	--bg    : #f6f4ee;
+	--ink   : #1f2a22;
+	--mute  : #6b766d;
+	--green : #2f4f3a;
+	--red   : #b3402a;
+	--line  : #dcd8cb;
 
-	--ic-locate: #2a6fb3;
-	--ic-toggle: #d1ffdd;
+	--ic-locate : #3a6ea5;
+	--ic-toggle : #d1ffdd;
 
-	--ic-add: #2f4f3a;
-	--ic-rename: #ffea00;
-	--ic-delete: #b3402a;
+	--ic-add    : #2f4f3a;
+	--ic-rename : #ffea00;
+	--ic-delete : #b3402a;
 
-	--ic-zoom: #3a6ea5;
-	--ic-move: #7a5aa6;
+	--ic-zoom : #3a6ea5;
+	--ic-move : #7a5aa6;
 }
 
 *
@@ -26,15 +26,15 @@
 html,
 body
 {
-	height: 100%;
-	margin: 0;
-	font:
+	height : 100%;
+	margin : 0;
+	font   :
 		15px/1.4 system-ui,
 		-apple-system,
 		Segoe UI,
 		sans-serif;
-	color: var(--ink);
-	background: var(--bg);
+	color: var(       --ink);
+	background: var(  --bg);
 }
 
 #app
@@ -48,47 +48,47 @@ body
 /* min-height 0 lets the map shrink inside the flex column. */
 #map
 {
-	flex: 1;
-	min-height: 0;
+	flex       : 1;
+	min-height : 0;
 }
 
 #panel
 {
-	background: var(--bg);
-	border-top: 1px solid var(--line);
-	padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-	max-height: 52%;
-	overflow: auto;
+	background: var(            --bg);
+	border-top: 1px solid var(  --line);
+	padding    : 10px 14px calc(10px + env(safe-area-inset-bottom));
+	max-height : 52%;
+	overflow   : auto;
 }
 
 .row
 {
-	display: flex;
-	gap: 10px;
-	align-items: center;
+	display     : flex;
+	gap         : 10px;
+	align-items : center;
 }
 
 .stats
 {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	margin: 8px 0 10px;
-	font-variant-numeric: tabular-nums;
+	display              : flex;
+	flex-direction       : column;
+	gap                  : 6px;
+	margin               : 8px 0 10px;
+	font-variant-numeric : tabular-nums;
 	color: var(--mute);
 	font-size: 12px;
 }
 
 .statsRow
 {
-	display: flex;
-	gap: 16px;
+	display : flex;
+	gap     : 16px;
 }
 
 .statsRow > div
 {
-	flex: 1;
-	min-width: 0;
+	flex      : 1;
+	min-width : 0;
 }
 
 .stats b
@@ -100,14 +100,14 @@ body
 
 #rec
 {
-	flex: 1;
-	border: 0;
-	border-radius: 12px;
-	padding: 8px 12px;
-	font-size: 17px;
-	font-weight: 600;
-	color: #fff;
-	background: var(--green);
+	flex          : 1;
+	border        : 0;
+	border-radius : 12px;
+	padding       : 8px 12px;
+	font-size     : 17px;
+	font-weight   : 600;
+	color         : #fff;
+	background: var(  --green);
 }
 
 /* app.js adds the class "on" while recording. */
@@ -118,36 +118,36 @@ body
 
 button.sm
 {
-	border: 1px solid var(--line);
-	background: #fff;
-	border-radius: 8px;
-	padding: 8px 10px;
-	font-size: 13px;
+	border: 1px solid var(  --line);
+	background    : #fff;
+	border-radius : 8px;
+	padding       : 8px 10px;
+	font-size     : 13px;
 	color: var(--ink);
 }
 
 .tabs
 {
-	display: flex;
-	gap: 4px;
-	margin: 12px 0 8px;
+	display : flex;
+	gap     : 4px;
+	margin  : 12px 0 8px;
 }
 
 .tabs button
 {
-	flex: 1;
-	border: 0;
-	background: transparent;
-	padding: 8px;
-	border-bottom: 2px solid var(--line);
-	color: var(--mute);
+	flex       : 1;
+	border     : 0;
+	background : transparent;
+	padding    : 8px;
+	border-bottom: 2px solid var(  --line);
+	color: var(                    --mute);
 	font-size: 14px;
 }
 
 .tabs button.active
 {
-	color: var(--green);
-	border-color: var(--green);
+	color: var(         --green);
+	border-color: var(  --green);
 	font-weight: 600;
 }
 
@@ -163,15 +163,15 @@ button.sm
 
 label.s
 {
-	display: block;
-	margin: 10px 0;
+	display : block;
+	margin  : 10px 0;
 }
 
 label.s span
 {
-	display: flex;
-	justify-content: space-between;
-	font-size: 13px;
+	display         : flex;
+	justify-content : space-between;
+	font-size       : 13px;
 	color: var(--mute);
 }
 
@@ -182,23 +182,23 @@ input[type='range']
 
 .track
 {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr);
-	align-items: start;
-	gap: 8px;
-	padding: 10px;
-	border-radius: 10px;
-	background: rgba(255, 255, 255, 0.55);
-	margin-bottom: 8px;
+	display               : grid;
+	grid-template-columns : auto minmax(0, 1fr);
+	align-items           : start;
+	gap                   : 8px;
+	padding               : 10px;
+	border-radius         : 10px;
+	background            : rgba(255, 255, 255, 0.55);
+	margin-bottom         : 8px;
 	border: 1px solid var(--line);
 }
 
 .track-check
 {
-	width: 18px;
-	height: 18px;
-	margin: 2px 0 0;
-	accent-color: #3a6ea5;
+	width        : 18px;
+	height       : 18px;
+	margin       : 2px 0 0;
+	accent-color : #3a6ea5;
 }
 
 .track-info
@@ -208,47 +208,47 @@ input[type='range']
 
 .track-heading
 {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 2px 8px;
+	display     : flex;
+	flex-wrap   : wrap;
+	align-items : baseline;
+	gap         : 2px 8px;
 }
 
 .track-name
 {
-	font-weight: 600;
-	overflow-wrap: anywhere;
+	font-weight   : 600;
+	overflow-wrap : anywhere;
 }
 
 .track-date
 {
 	color: var(--mute);
-	font-size: 11px;
-	font-weight: 400;
-	margin-top: 2px;
+	font-size   : 11px;
+	font-weight : 400;
+	margin-top  : 2px;
 }
 
 .track-meta
 {
 	color: var(--mute);
-	font-size: 12px;
-	font-variant-numeric: tabular-nums;
-	margin-top: 3px;
+	font-size            : 12px;
+	font-variant-numeric : tabular-nums;
+	margin-top           : 3px;
 }
 
 .track-actions
 {
-	grid-column: 1 / -1;
-	display: flex;
-	gap: 6px;
+	grid-column : 1 / -1;
+	display     : flex;
+	gap         : 6px;
 }
 
 .track-actions button
 {
-	flex: 1;
-	min-width: 0;
-	padding: 7px 5px;
-	font-size: 17px;
+	flex      : 1;
+	min-width : 0;
+	padding   : 7px 5px;
+	font-size : 17px;
 }
 
 .hint
@@ -259,33 +259,33 @@ input[type='range']
 
 #areaBar
 {
-	gap: 5px;
-	margin-bottom: 8px;
+	gap           : 5px;
+	margin-bottom : 8px;
 }
 
 #area
 {
-	flex: 1;
-	min-width: 0;
-	padding: 6px;
-	border-radius: 7px;
-	border: 1px solid var(--line);
-	background: #fff;
-	font-size: 14px;
-	font-weight: 600;
+	flex          : 1;
+	min-width     : 0;
+	padding       : 6px;
+	border-radius : 7px;
+	border: 1px solid var(  --line);
+	background  : #fff;
+	font-size   : 14px;
+	font-weight : 600;
 	color: var(--ink);
 }
 
 .areaBtn
 {
-	flex: 0 0 32px;
-	width: 32px;
-	height: 32px;
-	padding: 0;
-	font-size: 18px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	flex            : 0 0 32px;
+	width           : 32px;
+	height          : 32px;
+	padding         : 0;
+	font-size       : 18px;
+	display         : flex;
+	align-items     : center;
+	justify-content : center;
 }
 
 /* Icon colors: change the --ic-* values in :root. Selectors match the base codicon rule's specificity. */
@@ -337,27 +337,27 @@ input[type='range']
 /* Over the map; above Leaflet's own controls (z-index 1000). */
 #mapBtns
 {
-	position: absolute;
-	left: 10px;
-	top: calc(10px + env(safe-area-inset-top));
-	z-index: 1100;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
+	position       : absolute;
+	left           : 10px;
+	top            : calc(10px + env(safe-area-inset-top));
+	z-index        : 1100;
+	display        : flex;
+	flex-direction : column;
+	gap            : 8px;
 }
 
 .mapbtn
 {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	padding: 0;
-	border: 0;
-	border-radius: 10px;
-	background: #000;
-	color: var(--ink);
+	display         : flex;
+	align-items     : center;
+	justify-content : center;
+	width           : 28px;
+	height          : 28px;
+	padding         : 0;
+	border          : 0;
+	border-radius   : 10px;
+	background      : #000;
+	color: var(        --ink);
 }
 
 #panel.hide
@@ -368,19 +368,19 @@ input[type='range']
 /* Hidden and click-through until app.js adds the class "show". */
 #toast
 {
-	position: fixed;
-	left: 50%;
-	top: 14px;
-	transform: translateX(-50%);
-	background: #1f2a22;
-	color: #fff;
-	padding: 8px 14px;
-	border-radius: 20px;
-	font-size: 13px;
-	opacity: 0;
-	pointer-events: none;
-	transition: 0.25s;
-	z-index: 2000;
+	position       : fixed;
+	left           : 50%;
+	top            : 14px;
+	transform      : translateX(-50%);
+	background     : #1f2a22;
+	color          : #fff;
+	padding        : 8px 14px;
+	border-radius  : 20px;
+	font-size      : 13px;
+	opacity        : 0;
+	pointer-events : none;
+	transition     : 0.25s;
+	z-index        : 2000;
 }
 
 #toast.show
@@ -390,22 +390,22 @@ input[type='range']
 
 .leaflet-control-layers
 {
-	background: rgba(255, 255, 255, 0.75) !important;
-	border: 1px solid rgba(220, 216, 203, 0.7) !important;
-	border-radius: 10px !important;
-	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
-	backdrop-filter: blur(3px);
+	background      : rgba(255, 255, 255, 0.75) !important;
+	border          : 1px solid rgba(220, 216, 203, 0.7) !important;
+	border-radius   : 10px !important;
+	box-shadow      : 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+	backdrop-filter : blur(3px);
 }
 
 .leaflet-control-layers-toggle
 {
-	background-size: 16px 16px !important;
-	width: 28px !important;
-	height: 28px !important;
+	background-size : 16px 16px !important;
+	width           : 28px !important;
+	height          : 28px !important;
 }
 
 .leaflet-control-attribution
 {
-	font-size: 4px !important;
-	padding: 2px 5px !important;
+	font-size : 4px !important;
+	padding   : 2px 5px !important;
 }

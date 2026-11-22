@@ -84,7 +84,7 @@ const fmtT = ( secs ) =>
 	);
 };
 
-// Data saved by older versions may lack "updated"                               ; treat that as 0.
+// Data saved by older versions may lack "updated"; treat that as 0.
 const updatedOf = ( item ) => ( item.updated === undefined ? 0 : item.updated );
 
 // A new walk is named after its area; the date is shown on its own line in the list.
@@ -96,9 +96,21 @@ const walkName = ( areaId ) =>
 
 let tracks = load( KEY, [] );
 let areas  = load( AREAS, null );
-// cell: grid size in meters      ; minp: walks needed for a path; maxacc: max GPS error in meters.
+
+// Defaults for the three path sliders, also used by the "Reset to defaults" button.
+// They are practical starting points for walking, not measured values; tune them to your terrain.
+// cell (meters): grid size used to decide that two walks went the same way. Phone GPS typically
+//   drifts 3 to 10 m in the open, so 12 m lets repeated walks of one trail share cells, while
+//   trails about 25 m or more apart stay separate. Raise it under tree cover or in canyons.
+// minp (walks): distinct walks that must use a link before it counts as a path. One walk is just a
+//   walk, and two can be a coincidence or an out-and-back, so 3 means the route is really reused.
+// maxacc (meters): fixes with a reported error above this are dropped while recording. Over 25 m
+//   is usually a coarse network position or a poor sky view that would draw false jumps, while
+//   weaker but usable fixes under foliage are kept.
+const PATH_DEFAULTS = { cell: 12, minp: 3, maxacc: 25 };
+// Stored settings override the defaults; showRaw and area are not path sliders, so they are not reset.
 let settings = Object.assign(
-	{ cell: 12, minp: 3, maxacc: 25, showRaw: true, area: null },
+	{ ...PATH_DEFAULTS, showRaw: true, area: null },
 	load( SET, {} )
 );
 let current   = null;
@@ -154,7 +166,7 @@ const osm = L.tileLayer( 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 topo.addTo( map );
 L.control.layers( { Topographic : topo, Streets: osm }, null, { position: 'topright' } ).addTo( map );
 L.control.zoom( { position      : 'bottomright' } ).addTo( map );
-// refresh() clears and redraws rawLayer and pathLayer                                                 ; live is the line that grows while recording.
+// refresh() clears and redraws rawLayer and pathLayer; live is the line that grows while recording.
 const rawLayer  = L.layerGroup().addTo( map );
 const pathLayer = L.layerGroup().addTo( map );
 const live      = L.polyline( [], { color: '#b3402a', weight: 4 } ).addTo( map );
@@ -681,9 +693,21 @@ function bindSetting( id, key, vid, unit )
 		refresh();
 	};
 }
+
 bindSetting( 'cell', 'cell', 'vCell', ' m' );
 bindSetting( 'minp', 'minp', 'vMin', '×' );
 bindSetting( 'maxacc', 'maxacc', 'vAcc', ' m' );
+
+$( '#pathReset' ).onclick = () =>
+{
+	Object.assign( settings, PATH_DEFAULTS );
+	bindSetting( 'cell', 'cell', 'vCell', ' m' );
+	bindSetting( 'minp', 'minp', 'vMin', '×' );
+	bindSetting( 'maxacc', 'maxacc', 'vAcc', ' m' );
+	save( SET, settings );
+	refresh();
+	toast( 'Path settings reset' );
+};
 
 $( '#showRaw' ).checked  = settings.showRaw;
 $( '#showRaw' ).onchange = ( e ) =>
@@ -802,7 +826,7 @@ $( '#file' ).onchange = async ( e ) =>
 			}
 			if( pts.length > 1 )
 			{
-				// Only our own "trailweaver:" marker may create areas                         ; other apps use <type> for things like "hiking".
+				// Only our own "trailweaver:" marker may create areas; other apps use <type> for things like "hiking".
 				const typeEl = trk.querySelector( 'type' );
 				const ty     = typeEl !== null ? typeEl.textContent.trim()               : '';
 				const an     = ty.startsWith( 'trailweaver:' ) === true ? ty.slice( 12 ) : '';
@@ -1065,7 +1089,7 @@ $( '#aDel' ).onclick = () =>
 const SRV  = 'trailweaver.server.v1';
 const TOMB = 'trailweaver.tomb.v1';
 // pull: server clock (ms) from the last sync, sent back as "since".
-// push: device clock (ms) when the last sync started                                     ; items updated after it are unsent.
+// push: device clock (ms) when the last sync started; items updated after it are unsent.
 let srv     = Object.assign( { url: '', token: '', pull: 0, push: 0 }, load( SRV, {} ) );
 let tomb    = load( TOMB, [] );
 let syncing = false;
@@ -1136,7 +1160,7 @@ async function syncNow( manual )
 			pts     : t.pts,
 		} );
 		// Upload 20 tracks per request. Only the last request asks for the server's changes (since is
-		// set)            ; earlier ones send since: null, meaning "store only".
+		// set); earlier ones send since: null, meaning "store only".
 		const chunks = [];
 		for( let i = 0; i < dT.length; i += 20 )
 		{

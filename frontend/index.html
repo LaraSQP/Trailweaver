@@ -89,25 +89,29 @@
 				<div id="t-tracks" class="tab active"><div id="list"></div></div>
 
 				<div id="t-paths" class="tab">
-					<label class="s"
-						><span>Merge distance (cell size)<b id = "vCell"></b></span
-						><input id                             = "cell" type="range" min="5" max="40" step="1"
+					<label class="s">
+						<span>Merge distance (cell size)<b id="vCell"></b></span>
+
+						<input id="cell" type="range" min="5" max="40" step="1"
 					/></label>
-					<label class="s"
-						><span>Passes needed to count as a path<b id = "vMin"></b></span
-						><input id                                   = "minp" type="range" min="2" max="12" step="1"
+					<label class="s">
+						<span>Passes needed to count as a path<b id="vMin"></b></span>
+
+						<input id="minp" type="range" min="2" max="12" step="1"
 					/></label>
-					<label class="s"
-						><span>Ignore GPS fixes worse than<b id = "vAcc"></b></span
-						><input id                              = "maxacc" type="range" min="8" max="60" step="1"
+					<label class="s">
+						<span>Ignore GPS fixes worse than<b id="vAcc"></b></span>
+
+						<input id="maxacc" type="range" min="8" max="60" step="1"
 					/></label>
-					<label class="row" style="margin: 8px 0"
-						><input type="checkbox" id="showRaw" checked /> Show raw tracks</label
-					>
+					<label class="row" style="margin: 8px 0">
+						<input type="checkbox" id="showRaw" checked /> Show raw tracks
+					</label>
 					<p class="hint">
 						A segment becomes a path when at least N different walks used it. Lower N or
 						raise the merge distance to see paths sooner; the opposite to be stricter.
 					</p>
+					<button class="sm" id="pathReset">Reset to defaults</button>
 				</div>
 
 				<div id="t-data" class="tab">
