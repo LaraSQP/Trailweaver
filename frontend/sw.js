@@ -3,7 +3,7 @@
 // version of the app shows up on the second launch after an upload.
 
 // Bump SHELL's version to make activate discard old caches.
-const SHELL = 'trailweaver-shell-v10';
+const SHELL = 'trailweaver-shell-v11';
 const TILES = 'trailweaver-tiles-v1';
 
 const ASSETS =
@@ -25,7 +25,7 @@ self.addEventListener( 'install', ( e ) =>
 	e.waitUntil(
 		caches
 			.open( SHELL )
-			.then( ( c ) => Promise.allSettled( ASSETS.map( ( a ) => c.add( a ) ) ) )
+			.then( ( c ) => Promise.allSettled( ASSETS.map( ( a ) => c.add( new Request( a, { cache: 'reload' } ) ) ) ) )
 			.then( () => self.skipWaiting() )
 	);
 } );
