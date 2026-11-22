@@ -46,7 +46,7 @@ body
 	height         : 100%;
 }
 
-/* min-height 0 lets the map shrink inside the flex column. */
+/* min-height 0 lets the map shrink inside the flex column */
 #map
 {
 	flex       : 1;
@@ -111,7 +111,7 @@ body
 	background: var(  --green);
 }
 
-/* app.js adds the class "on" while recording. */
+/* app.js adds the class "on" while recording */
 #rec.on
 {
 	background: var(--red);
@@ -289,7 +289,7 @@ input[type='range']
 	justify-content : center;
 }
 
-/* Icon colors: change the --ic-* values in :root. Selectors match the base codicon rule's specificity. */
+/* Icon colors: change the --ic-* values in :root. Selectors match the base codicon rule's specificity */
 .codicon[class*='codicon-'].ico
 {
 	font-size: 18px;
@@ -340,7 +340,7 @@ input[type='range']
 	color: var(--ic-delete);
 }
 
-/* Over the map; above Leaflet's own controls (z-index 1000). */
+/* Over the map; above Leaflet's own controls (z-index 1000) */
 #mapBtns
 {
 	position       : absolute;
@@ -382,7 +382,7 @@ input[type='range']
 	display: flex;
 }
 
-/* Dim gray text keeps the OLED draw tiny; app.js adds "gone" after 10 s to fade it out. */
+/* Dim gray text keeps the OLED draw tiny; app.js adds "gone" after 10 s to fade it out */
 #blackMsg
 {
 	max-width   : 280px;
@@ -406,7 +406,7 @@ input[type='range']
 	display: none;
 }
 
-/* Hidden and click-through until app.js adds the class "show". */
+/* Hidden and click-through until app.js adds the class "show" */
 #toast
 {
 	position       : fixed;

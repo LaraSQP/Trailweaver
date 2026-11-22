@@ -1,10 +1,10 @@
 'use strict';
-// Trailweaver app logic.
+// Trailweaver app logic
 // Data (JSON in localStorage):
 //   track = { id, name, start, area, updated, visible, pts }   pts = [[lat, lng, unixSeconds], ...]
 //   area  = { id, name, updated }
 //   tomb  = { t: 'track' | 'area', id, updated }   a deletion waiting to be synced
-// "updated" is a millisecond timestamp bumped on every change; sync uses it for last-write-wins.
+// "updated" is a millisecond timestamp bumped on every change; sync uses it for last-write-wins
 
 const $ = ( selector ) => document.querySelector( selector );
 
@@ -14,7 +14,7 @@ const SET   = 'trailweaver.settings.v1';
 const AREAS = 'trailweaver.areas.v1';
 const GEO   = 'geolocation' in navigator;
 
-// localStorage can throw (private mode) or hold bad JSON, so always fall back.
+// localStorage can throw (private mode) or hold bad JSON, so always fall back
 const load = ( key, fallback ) =>
 {
 	try
@@ -53,7 +53,7 @@ function toast( message )
 	toast.h = setTimeout( () => el.classList.remove( 'show' ), 2600 );
 }
 
-// Haversine distance in meters between [lat, lng] points; extra array elements are ignored.
+// Haversine distance in meters between [lat, lng] points; extra array elements are ignored
 function hav( a, b )
 {
 	const R    = 6371000;
@@ -94,10 +94,10 @@ const fmtT = ( secs ) =>
 	);
 };
 
-// Data saved by older versions may lack "updated"; treat that as 0.
+// Data saved by older versions may lack "updated"; treat that as 0
 const updatedOf = ( item ) => ( item.updated === undefined ? 0 : item.updated );
 
-// A new walk is named after its area; the date is shown on its own line in the list.
+// A new walk is named after its area; the date is shown on its own line in the list
 const walkName = ( areaId ) =>
 {
 	const owner = areas.find( ( x ) => x.id === areaId );
@@ -108,19 +108,19 @@ const walkName = ( areaId ) =>
 let tracks = load( KEY, [] );
 let areas  = load( AREAS, null );
 
-// Defaults for the three path sliders, also used by the "Reset to defaults" button.
-// They are practical starting points for walking, not measured values; tune them to your terrain.
+// Defaults for the three path sliders, also used by the "Reset to defaults" button
+// They are practical starting points for walking, not measured values; tune them to your terrain
 // cell (meters): grid size used to decide that two walks went the same way. Phone GPS typically
 //   drifts 3 to 10 m in the open, so 12 m lets repeated walks of one trail share cells, while
-//   trails about 25 m or more apart stay separate. Raise it under tree cover or in canyons.
+//   trails about 25 m or more apart stay separate. Raise it under tree cover or in canyons
 // minp (walks): distinct walks that must use a link before it counts as a path. One walk is just a
-//   walk, and two can be a coincidence or an out-and-back, so 3 means the route is really reused.
+//   walk, and two can be a coincidence or an out-and-back, so 3 means the route is really reused
 // maxacc (meters): fixes with a reported error above this are dropped while recording. Over 25 m
 //   is usually a coarse network position or a poor sky view that would draw false jumps, while
-//   weaker but usable fixes under foliage are kept.
+//   weaker but usable fixes under foliage are kept
 const PATH_DEFAULTS = { cell: 12, minp: 3, maxacc: 25 };
 
-// Stored settings override the defaults; showRaw and area are not path sliders, so they are not reset.
+// Stored settings override the defaults; showRaw and area are not path sliders, so they are not reset
 let settings = Object.assign
 	(
 		{ ...PATH_DEFAULTS, showRaw: true, area: null },
@@ -133,7 +133,7 @@ let wake      = null;
 let timer     = null;
 let lastEdges = [];
 
-// Migration for data without areas or timestamps. The fixed 'default' id lets devices share one default area when synced.
+// Migration for data without areas or timestamps. The fixed 'default' id lets devices share one default area when synced
 if( Array.isArray( areas ) === false || areas.length === 0 )
 {
 	areas = [ { id: 'default', name: 'My area', updated: Date.now() } ];
@@ -175,7 +175,7 @@ const areaTracks = () => tracks.filter( ( t ) => t.area === settings.area );
 
 const map = L.map( 'map', { zoomControl: false } ).setView( [ 20, 0 ], 2 );
 
-// The tile URL pattern is also matched in sw.js for caching.
+// The tile URL pattern is also matched in sw.js for caching
 const topo = L.tileLayer( 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
 	{
 		maxZoom     : 17,
@@ -192,7 +192,7 @@ topo.addTo( map );
 L.control.layers( { Topographic : topo, Streets: osm }, null, { position: 'topright' } ).addTo( map );
 L.control.zoom( { position      : 'bottomright' } ).addTo( map );
 
-// refresh() clears and redraws rawLayer and pathLayer; live is the line that grows while recording.
+// refresh() clears and redraws rawLayer and pathLayer; live is the line that grows while recording
 const rawLayer  = L.layerGroup().addTo( map );
 const pathLayer = L.layerGroup().addTo( map );
 const live      = L.polyline( [], { color: '#b3402a', weight: 4 } ).addTo( map );
@@ -206,7 +206,7 @@ const me        = L.circleMarker( [ 0, 0 ],
 	} );
 
 // Called for every GPS fix. While recording, drops fixes worse than maxacc and
-// fixes closer than minStep (3 to 8 m, half the reported accuracy) to the last saved point.
+// fixes closer than minStep (3 to 8 m, half the reported accuracy) to the last saved point
 function onPos( p )
 {
 	const c = p.coords;
@@ -232,7 +232,7 @@ function onPos( p )
 		return;
 	}
 
-	// First usable fix of a recording: offer to switch or create an area if far from this one.
+	// First usable fix of a recording: offer to switch or create an area if far from this one
 	if( current.pts.length === 0 && current.checked !== true )
 	{
 		current.checked = true;
@@ -256,7 +256,7 @@ function onPos( p )
 		map.panTo( ll, { animate: true } );
 	}
 
-	// Saved every 5th point so an unfinished walk can be recovered after a crash (see boot).
+	// Saved every 5th point so an unfinished walk can be recovered after a crash (see boot)
 	if( current.pts.length % 5 === 0 )
 	{
 		save( CUR, current );
@@ -270,7 +270,7 @@ function onErr( e )
 	toast( e.code === 1 ? 'Location permission denied' : 'GPS: ' + e.message );
 }
 
-// Browsers pause GPS when the screen turns off, so ask to keep it on.
+// Browsers pause GPS when the screen turns off, so ask to keep it on
 async function keepAwake()
 {
 	try
@@ -279,7 +279,7 @@ async function keepAwake()
 	}
 	catch
 	{
-		// Optional feature; ignore failures.
+		// Optional feature; ignore failures
 	}
 }
 
@@ -345,10 +345,10 @@ function stopRec()
 	{
 		current.updated = Date.now();
 
-		// Looked up here because checkArea may have switched the area after Start.
+		// Looked up here because checkArea may have switched the area after Start
 		current.name = walkName( current.area );
 
-		// "checked" is a transient recording flag, not part of the saved track.
+		// "checked" is a transient recording flag, not part of the saved track
 		delete current.checked;
 
 		tracks.push( current );
@@ -389,7 +389,7 @@ $( '#rec' ).onclick = () =>
 	}
 };
 
-// Returning to the app releases the wake lock, so request it again.
+// Returning to the app releases the wake lock, so request it again
 function onVisibility()
 {
 	if( document.visibilityState === 'visible' && current !== null )
@@ -399,7 +399,7 @@ function onVisibility()
 }
 document.addEventListener( 'visibilitychange', onVisibility );
 
-// Centers on the device position. Works without recording, so it asks for a one-time fix.
+// Centers on the device position. Works without recording, so it asks for a one-time fix
 $( '#locate' ).onclick = () =>
 {
 	if( GEO === false )
@@ -423,7 +423,7 @@ $( '#locate' ).onclick = () =>
 	);
 };
 
-// The map is resized after the panel changes height, otherwise Leaflet keeps the old size.
+// The map is resized after the panel changes height, otherwise Leaflet keeps the old size
 $( '#toggle' ).onclick = () =>
 {
 	const hidden = $( '#panel' ).classList.toggle( 'hide' );
@@ -433,9 +433,9 @@ $( '#toggle' ).onclick = () =>
 	setTimeout( () => map.invalidateSize(), 50 );
 };
 
-// Pure black layer to save battery on OLED screens; a tap anywhere restores the app.
-// The theme color is switched too, so the status bar goes black where the browser allows it.
-// An explanation shows for 10 s, then fades out so the screen is fully black.
+// Pure black layer to save battery on OLED screens; a tap anywhere restores the app
+// The theme color is switched too, so the status bar goes black where the browser allows it
+// An explanation shows for 10 s, then fades out so the screen is fully black
 const themeMeta  = document.querySelector( 'meta[name="theme-color"]' );
 const themeColor = themeMeta.content;
 let blackTimer   = null;
@@ -464,7 +464,7 @@ $( '#blackLayer' ).onclick = () =>
 	themeMeta.content = themeColor;
 };
 
-// 3-point moving average to calm GPS jitter; the end points are kept as they are.
+// 3-point moving average to calm GPS jitter; the end points are kept as they are
 function smooth( pts )
 {
 	if( pts.length < 3 )
@@ -494,10 +494,10 @@ function smooth( pts )
 }
 
 // Path detection. A grid of cell-sized squares is laid over the ground and each track is converted
-// into the sequence of cells it passes through. Every step between neighboring cells is a "link".
+// into the sequence of cells it passes through. Every step between neighboring cells is a "link"
 // Links used by at least minPasses DIFFERENT tracks are paths. Walks that stay within about one
-// cell of each other share cells, which is what merges meandering walks into one path.
-// Returns { edges: [{ a, b, n }], max, km } where km is the total length in meters.
+// cell of each other share cells, which is what merges meandering walks into one path
+// Returns { edges: [{ a, b, n }], max, km } where km is the total length in meters
 function computePaths( list, cell, minPasses )
 {
 	const all = list.filter( ( t ) => t.pts.length > 1 );
@@ -507,13 +507,13 @@ function computePaths( list, cell, minPasses )
 		return { edges: [], max: 0, km: 0 };
 	}
 
-	// Local meters around the first point.
+	// Local meters around the first point
 	const lat0 = all[ 0 ].pts[ 0 ][ 0 ];
 	const lng0 = all[ 0 ].pts[ 0 ][ 1 ];
 	const kx   = 111320 * Math.cos( ( lat0 * Math.PI ) / 180 );
 	const ky   = 110540;
 
-	// Link key "cellA|cellB" (sorted, so both directions match) -> number of tracks that used it.
+	// Link key "cellA|cellB" (sorted, so both directions match) -> number of tracks that used it
 	const counts = new Map();
 	for( const t of all )
 	{
@@ -542,7 +542,7 @@ function computePaths( list, cell, minPasses )
 			const dy = p[ i ][ 1 ] - p[ i - 1 ][ 1 ];
 			const d  = Math.hypot( dx, dy );
 
-			// A jump over 250 m is a GPS gap: break the sequence instead of drawing a straight line.
+			// A jump over 250 m is a GPS gap: break the sequence instead of drawing a straight line
 			if( d > 250 )
 			{
 				seq.push( null );
@@ -553,7 +553,7 @@ function computePaths( list, cell, minPasses )
 				continue;
 			}
 
-			// Half-cell steps so no cell is skipped between distant points.
+			// Half-cell steps so no cell is skipped between distant points
 			const n = Math.max( 1, Math.ceil( d / ( cell / 2 ) ) );
 
 			for( let s = 1; s <= n; s++ )
@@ -561,7 +561,7 @@ function computePaths( list, cell, minPasses )
 				add( p[ i - 1 ][ 0 ] + ( dx * s ) / n, p[ i - 1 ][ 1 ] + ( dy * s ) / n );
 			}
 		}
-		// Each link counts once per track, so pacing over the same ground is still one walk.
+		// Each link counts once per track, so pacing over the same ground is still one walk
 		const seen = new Set();
 
 		for( let i = 1; i < seq.length; i++ )
@@ -609,14 +609,14 @@ function computePaths( list, cell, minPasses )
 
 		max = Math.max( max, n );
 
-		// Despite the name, this accumulates meters.
+		// Despite the name, this accumulates meters
 		km += hav( A, B );
 	}
 
 	return { edges: edges, max: max, km: km };
 }
 
-// Yellow (few passes) to red (many passes).
+// Yellow (few passes) to red (many passes)
 const ramp = ( n, max ) =>
 {
 	const t = max <= settings.minp ? 1 : ( n - settings.minp ) / ( max - settings.minp );
@@ -624,7 +624,7 @@ const ramp = ( n, max ) =>
 	return `hsl(${50 - 50 * t},90%,${52 - 8 * t}%)`;
 };
 
-// Single redraw entry point; call it after any data change.
+// Single redraw entry point; call it after any data change
 function refresh()
 {
 	rawLayer.clearLayers();
@@ -666,7 +666,7 @@ function refresh()
 }
 
 
-// Icon-only button. icon is a codicon name, tone picks the color class (ic-<tone> in styles.css).
+// Icon-only button. icon is a codicon name, tone picks the color class (ic-<tone> in styles.css)
 const iconButton = ( icon, tone, label ) =>
 {
 	const b = document.createElement( 'button' );
@@ -807,9 +807,9 @@ function renderList()
 }
 
 // Data tab footer: app.js version plus the cache names created by sw.js. Two caches listed means
-// an update is waiting; a version that differs from the expected one means a stale file.
-// Data tab footer: the version comes from SHELL in sw.js (the only place to bump it).
-// Two versions listed means an update is waiting, ie, a version that differs from the expected one means a stale file.
+// an update is waiting; a version that differs from the expected one means a stale file
+// Data tab footer: the version comes from SHELL in sw.js (the only place to bump it)
+// Two versions listed means an update is waiting, ie, a version that differs from the expected one means a stale file
 const showVersion = async () =>
 {
 	let cache = 'none';
@@ -826,7 +826,7 @@ const showVersion = async () =>
 	$( '#ver' ).textContent = 'Version: ' + cache;
 };
 
-// Fit the map to the current area, or to the device position if the area has no tracks.
+// Fit the map to the current area, or to the device position if the area has no tracks
 function fitAll()
 {
 	const pts = areaTracks().flatMap( ( t ) => t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) );
@@ -846,7 +846,7 @@ function fitAll()
 	}
 }
 
-// The value label follows the slider while dragging; save and redraw only on release.
+// The value label follows the slider while dragging; save and redraw only on release
 function bindSetting( id, key, vid, unit )
 {
 	const el = $( '#' + id );
@@ -891,7 +891,7 @@ $( '#showRaw' ).onchange = ( e ) =>
 	refresh();
 };
 
-// Tab button data-t="x" shows the element with id "t-x".
+// Tab button data-t="x" shows the element with id "t-x"
 for( const b of document.querySelectorAll( '.tabs button' ) )
 {
 	b.onclick = () =>
@@ -917,7 +917,7 @@ function download( name, text, type )
 	setTimeout( () => URL.revokeObjectURL( a.href ), 1000 );
 }
 
-// Each track gets <type>trailweaver:AreaName</type> so importing the file restores its area.
+// Each track gets <type>trailweaver:AreaName</type> so importing the file restores its area
 const exportGpx = ( list, fname ) =>
 {
 	if( list.length === 0 )
@@ -960,7 +960,7 @@ const safeName = () => curArea().name.replace( /[^\p{L}\p{N}]+/gu, '_' );
 $( '#exGpx' ).onclick = () => exportGpx( areaTracks(), 'trailweaver-' + safeName() + '.gpx' );
 $( '#exAll' ).onclick = () => exportGpx( tracks, 'trailweaver-all-areas.gpx' );
 
-// GeoJSON coordinates are [longitude, latitude], the reverse of the internal [lat, lng].
+// GeoJSON coordinates are [longitude, latitude], the reverse of the internal [lat, lng]
 $( '#exGeo' ).onclick = () =>
 {
 	if( lastEdges.length === 0 )
@@ -1017,7 +1017,7 @@ $( '#file' ).onchange = async ( e ) =>
 
 			if( pts.length > 1 )
 			{
-				// Only our own "trailweaver:" marker may create areas; other apps use <type> for things like "hiking".
+				// Only our own "trailweaver:" marker may create areas; other apps use <type> for things like "hiking"
 				const typeEl = trk.querySelector( 'type' );
 				const ty     = typeEl !== null ? typeEl.textContent.trim()               : '';
 				const an     = ty.startsWith( 'trailweaver:' ) === true ? ty.slice( 12 ) : '';
@@ -1043,7 +1043,7 @@ $( '#file' ).onchange = async ( e ) =>
 					nm = nameEl.textContent;
 				}
 
-				// "+ added" keeps ids unique within one import.
+				// "+ added" keeps ids unique within one import
 				const track =
 				{
 					area    : ar !== undefined ? ar.id : settings.area,
@@ -1086,7 +1086,7 @@ $( '#wipe' ).onclick = () =>
 	}
 };
 
-// Adds 7 synthetic walks along one loose route; each wobbles randomly around it, like a person wandering.
+// Adds 7 synthetic walks along one loose route; each wobbles randomly around it, like a person wandering
 $( '#demo' ).onclick = () =>
 {
 	const c  = map.getCenter();
@@ -1169,7 +1169,7 @@ function renderAreas()
 	}
 }
 
-// A recording in progress follows into the new area.
+// A recording in progress follows into the new area
 function setArea( id )
 {
 	settings.area = id;
@@ -1194,7 +1194,7 @@ function newArea( name )
 	autoSync();
 }
 
-// Distance in meters to the nearest point of the given tracks (checks every 3rd point).
+// Distance in meters to the nearest point of the given tracks (checks every 3rd point)
 const nearestM = ( list, ll ) =>
 {
 	let best = Infinity;
@@ -1215,7 +1215,7 @@ const nearestM = ( list, ll ) =>
 };
 
 // Runs at the first fix of a recording. More than 3 km from this area's tracks: offer the nearest
-// other area within 1.5 km, otherwise offer a new area. Declining keeps the current area.
+// other area within 1.5 km, otherwise offer a new area. Declining keeps the current area
 function checkArea( ll )
 {
 	const mine = areaTracks();
@@ -1292,7 +1292,7 @@ $( '#aRen' ).onclick = () =>
 	}
 };
 
-// Deleting an area also deletes its tracks; tombstones let other devices do the same.
+// Deleting an area also deletes its tracks; tombstones let other devices do the same
 $( '#aDel' ).onclick = () =>
 {
 	if( areas.length < 2 )
@@ -1319,18 +1319,18 @@ $( '#aDel' ).onclick = () =>
 };
 
 // Optional sync with api.php; it does nothing until a token is entered. Each sync uploads items
-// changed since the last one, then merges what the server changed (newer "updated" wins).
-// Deletions travel as tombstones because a deleted item no longer exists to upload.
+// changed since the last one, then merges what the server changed (newer "updated" wins)
+// Deletions travel as tombstones because a deleted item no longer exists to upload
 const SRV  = 'trailweaver.server.v1';
 const TOMB = 'trailweaver.tomb.v1';
 
-// pull: server clock (ms) from the last sync, sent back as "since".
-// push: device clock (ms) when the last sync started; items updated after it are unsent.
+// pull: server clock (ms) from the last sync, sent back as "since"
+// push: device clock (ms) when the last sync started; items updated after it are unsent
 let srv     = Object.assign( { url: '', token: '', pull: 0, push: 0 }, load( SRV, {} ) );
 let tomb    = load( TOMB, [] );
 let syncing = false;
 
-// Device ids are numbers, server ids are strings.
+// Device ids are numbers, server ids are strings
 const same   = ( a, b ) => String( a ) === String( b );
 const srvUrl = () => srv.url.trim() !== '' ? srv.url.trim() : new URL( 'api.php', location.href ).href;
 
@@ -1353,7 +1353,7 @@ const autoSync = () =>
 	}
 };
 
-// "manual" is true when a button started the sync; only then are results shown as toasts.
+// "manual" is true when a button started the sync; only then are results shown as toasts
 async function syncNow( manual )
 {
 	if( srv.token === '' )
@@ -1371,7 +1371,7 @@ async function syncNow( manual )
 		return;
 	}
 
-	// Never sync mid-recording.
+	// Never sync mid-recording
 	if( current !== null )
 	{
 		if( manual === true )
@@ -1385,7 +1385,7 @@ async function syncNow( manual )
 
 	setStatus( 'Syncing…' );
 
-	// Taken before collecting changes, so anything modified during the sync is sent next time.
+	// Taken before collecting changes, so anything modified during the sync is sent next time
 	const startedAt = Date.now() - 1;
 
 	try
@@ -1404,7 +1404,7 @@ async function syncNow( manual )
 		} );
 
 		// Upload 20 tracks per request. Only the last request asks for the server's changes (since is
-		// set); earlier ones send since: null, meaning "store only".
+		// set); earlier ones send since: null, meaning "store only"
 		const chunks = [];
 
 		for( let i = 0; i < dT.length; i += 20 )
@@ -1450,14 +1450,14 @@ async function syncNow( manual )
 				}
 				catch
 				{
-					// The error body was not JSON.
+					// The error body was not JSON
 				}
 				throw new Error( msg );
 			}
 
 			res = await r.json();
 		}
-		// Merge the server's changes. A deletion is ignored if the local copy is newer, and the last area is never removed.
+		// Merge the server's changes. A deletion is ignored if the local copy is newer, and the last area is never removed
 		let changed    = false;
 		const srvAreas = res.areas === undefined ? [] : res.areas;
 
@@ -1519,13 +1519,13 @@ async function syncNow( manual )
 			}
 			else if( t.updated > updatedOf( tracks[ i ] ) )
 			{
-				// Points never change after recording, so only these fields are updated.
+				// Points never change after recording, so only these fields are updated
 				Object.assign( tracks[ i ], { area: t.area, name: t.name, updated: t.updated } );
 
 				changed = true;
 			}
 		}
-		// Tracks whose area was deleted elsewhere move to the first area.
+		// Tracks whose area was deleted elsewhere move to the first area
 		for( const t of tracks )
 		{
 			if( areas.some( ( a ) => same( a.id, t.area ) ) === false )
@@ -1582,7 +1582,7 @@ if( srv.token !== '' )
 	setStatus( 'Ready. Last sync: ' + ( srv.pull > 0 ? new Date( srv.pull ).toLocaleString() : 'never' ) );
 }
 
-// Changing the server or token resets the markers so the next sync transfers everything.
+// Changing the server or token resets the markers so the next sync transfers everything
 $( '#srvSave' ).onclick = () =>
 {
 	const url   = $( '#srvUrl' ).value.trim();
@@ -1604,7 +1604,7 @@ $( '#srvNow' ).onclick = () => syncNow( true );
 
 window.addEventListener( 'online', autoSync );
 
-// Boot. An unfinished recording left in storage means the app closed or crashed mid-walk.
+// Boot. An unfinished recording left in storage means the app closed or crashed mid-walk
 const crashed = load( CUR, null );
 if(
 	crashed !== null &&

@@ -1,8 +1,8 @@
 'use strict';
 // Service worker: offline app shell plus cached map tiles. Stale-while-revalidate, so a new
-// version of the app shows up on the second launch after an upload.
+// version of the app shows up on the second launch after an upload
 
-// Bump SHELL's version to make activate discard old caches.
+// Bump SHELL's version to make activate discard old caches
 const SHELL = 'trailweaver-shell-v12';
 const TILES = 'trailweaver-tiles-v1';
 
@@ -19,7 +19,7 @@ const ASSETS =
 		'https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.45/dist/codicon.css',
 	];
 
-// allSettled: one failed download (for example the CDN while offline) must not abort the install.
+// allSettled: one failed download (for example the CDN while offline) must not abort the install
 self.addEventListener( 'install', ( e ) =>
 {
 	e.waitUntil
@@ -50,7 +50,7 @@ self.addEventListener( 'activate', ( e ) =>
 
 self.addEventListener( 'fetch', ( e ) =>
 {
-	// The sync upload is a POST and must always reach the network.
+	// The sync upload is a POST and must always reach the network
 	if( e.request.method !== 'GET' )
 	{
 		return;
@@ -67,12 +67,12 @@ self.addEventListener( 'fetch', ( e ) =>
 				const net   = fetch( e.request )
 					.then( ( r ) =>
 					{
-						// Opaque responses (cross-origin tiles and scripts) cannot be inspected but can be cached.
+						// Opaque responses (cross-origin tiles and scripts) cannot be inspected but can be cached
 						if( r !== undefined && ( r.ok === true || r.type === 'opaque' ) )
 						{
 							cache.put( e.request, r.clone() );
 
-							// Tile cache limit: drop the oldest entry above 1500.
+							// Tile cache limit: drop the oldest entry above 1500
 							if( isTile === true )
 							{
 								cache.keys().then( ( k ) =>
