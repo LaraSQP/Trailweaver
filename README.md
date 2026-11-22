@@ -9,9 +9,10 @@ Data stays in your browser, with optional sync to your own PHP and MySQL server.
 - Topographic and street maps (Leaflet, OpenTopoMap, OpenStreetMap)
 - GPS recording with screen wake lock and crash recovery
 - Path detection from overlapping walks, colored yellow to red by pass count
-- Adjustable merge distance, minimum passes, and GPS accuracy filter
-- Areas: separate groups of tracks, with a prompt when you start far away
+- Adjustable merge distance, minimum passes, and GPS accuracy filter, with reset to defaults
+- Areas: separate groups of tracks, with a prompt when you start far away; rename or move tracks
 - GPX import/export and GeoJSON path export
+- Map buttons: center on me, black out the screen to save battery, hide controls
 - Installable, works offline, map tiles cached as you browse
 - Optional token-protected sync across devices (last write wins)
 
@@ -24,7 +25,7 @@ Open the GitHub Pages address ([https://larasqp.github.io/Trailweaver](https://l
 > 
 > Clearing site data deletes your tracks, so export GPX regularly if this is important to you.
 
-## With installation
+## With installation (self-hosting)
 
 For multi-device sync, install your own server:
 
@@ -34,6 +35,7 @@ For multi-device sync, install your own server:
 4. Copy `backend/config.example.php` to `config.php` and set `TW_TOKEN` (random, 16+ characters) and the `DB_*` values. Never commit it.
 5. Open the site on your phone and choose Install or Add to Home screen.
 6. In the Data tab, enter the same token and tap Save & sync. Tables are created automatically.
+7. After each update, bump  `SHELL` in `sw.js` (eg, `v8` to `v9`) so phones fetch the new files. The Data tab shows the active version.
 
 ## License
 

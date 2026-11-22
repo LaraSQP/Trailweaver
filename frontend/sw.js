@@ -3,7 +3,7 @@
 // version of the app shows up on the second launch after an upload.
 
 // Bump SHELL's version to make activate discard old caches.
-const SHELL = 'trailweaver-shell-v8';
+const SHELL = 'trailweaver-shell-v9';
 const TILES = 'trailweaver-tiles-v1';
 
 const ASSETS =

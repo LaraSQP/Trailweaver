@@ -8,9 +8,6 @@
 
 const $ = ( selector ) => document.querySelector( selector );
 
-// Shown at the end of the Data tab; bump together with SHELL in sw.js so a mismatch reveals a stale file.
-const APP_VERSION = 'v8';
-
 const KEY   = 'trailweaver.tracks.v1';
 const CUR   = 'trailweaver.current.v1';
 const SET   = 'trailweaver.settings.v1';
@@ -680,6 +677,8 @@ function renderList()
 
 // Data tab footer: app.js version plus the cache names created by sw.js. Two caches listed means
 // an update is waiting; a version that differs from the expected one means a stale file.
+// Data tab footer: the version comes from SHELL in sw.js (the only place to bump it).
+// Two versions listed means an update is waiting, ie, a version that differs from the expected one means a stale file.
 const showVersion = async () =>
 {
 	let cache = 'none';
@@ -691,7 +690,7 @@ const showVersion = async () =>
 	{
 		cache = 'unavailable';
 	}
-	$( '#ver' ).textContent = 'Version: app ' + APP_VERSION + ' · cache ' + cache;
+	$( '#ver' ).textContent = 'Version: ' + cache;
 };
 
 // Fit the map to the current area, or to the device position if the area has no tracks.
