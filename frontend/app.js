@@ -87,6 +87,13 @@ const fmtT = ( secs ) =>
 // Data saved by older versions may lack "updated"; treat that as 0.
 const updatedOf = ( item ) => ( item.updated === undefined ? 0 : item.updated );
 
+// A new walk is named after its area; the date is shown on its own line in the list.
+const walkName = ( areaId ) =>
+{
+	const owner = areas.find( ( x ) => x.id === areaId );
+	return owner !== undefined ? owner.name : 'Walk';
+};
+
 let tracks = load( KEY, [] );
 let areas  = load( AREAS, null );
 // cell: grid size in meters; minp: walks needed for a path; maxacc: max GPS error in meters.
@@ -240,7 +247,7 @@ function startRec()
 	}
 	current = {
 		id      : Date.now(),
-		name    : 'Walk ' + new Date().toLocaleString( [], { dateStyle: 'short', timeStyle: 'short' } ),
+		name    : '',
 		start   : Math.round( Date.now() / 1000 ),
 		visible : true,
 		area    : settings.area,
@@ -271,6 +278,8 @@ function stopRec()
 	if( current !== null && current.pts.length >= 2 )
 	{
 		current.updated = Date.now();
+		// Looked up here because checkArea may have switched the area after Start.
+		current.name = walkName( current.area );
 		// "checked" is a transient recording flag, not part of the saved track.
 		delete current.checked;
 		tracks.push( current );
@@ -508,6 +517,17 @@ function refresh()
 }
 
 
+// Icon-only button; the label feeds the tooltip and screen readers.
+const iconButton = ( glyph, label ) =>
+{
+	const b       = document.createElement( 'button' );
+	b.className   = 'sm';
+	b.textContent = glyph;
+	b.title       = label;
+	b.setAttribute( 'aria-label', label );
+	return b;
+};
+
 function renderList()
 {
 	const el = $( '#list' );
@@ -536,7 +556,7 @@ function renderList()
 
 		const name       = document.createElement( 'div' );
 		name.className   = 'track-name';
-		name.textContent = t.name.replace( /^Walk\s+.+$/, 'Walk' );
+		name.textContent = t.name;
 
 		const date     = document.createElement( 'div' );
 		date.className = 'track-date';
@@ -554,19 +574,12 @@ function renderList()
 		const actions     = document.createElement( 'div' );
 		actions.className = 'track-actions';
 
-		const z       = document.createElement( 'button' );
-		z.className   = 'sm';
-		z.textContent = 'Zoom';
+		const z  = iconButton( '🔍', 'Zoom to track' );
+		const mv = iconButton( '↕', 'Move to another area' );
+		const rn = iconButton( '✏️', 'Rename track' );
+		const d  = iconButton( '🗑️', 'Delete track' );
 
-		const mv       = document.createElement( 'button' );
-		mv.className   = 'sm';
-		mv.textContent = 'Move';
-
-		const d       = document.createElement( 'button' );
-		d.className   = 'sm';
-		d.textContent = 'Delete';
-
-		actions.append( z, mv, d );
+		actions.append( z, mv, rn, d );
 		row.append( cb, info, actions );
 
 		mv.onclick = () =>
@@ -588,6 +601,19 @@ function renderList()
 				save( KEY, tracks );
 				refresh();
 				toast( 'Moved to ' + a.name );
+			}
+		};
+
+		rn.onclick = () =>
+		{
+			const n = prompt( 'Rename track:', t.name );
+			if( n !== null && n.trim() !== '' )
+			{
+				t.name    = n.trim();
+				t.updated = Date.now();
+				save( KEY, tracks );
+				refresh();
+				autoSync();
 			}
 		};
 
@@ -1287,6 +1313,7 @@ if(
 		crashed.area = settings.area;
 	}
 	crashed.updated = Date.now();
+	crashed.name    = walkName( crashed.area );
 	tracks.push( crashed );
 	save( KEY, tracks );
 }
