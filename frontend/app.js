@@ -442,10 +442,10 @@ let blackTimer   = null;
 
 $( '#blackout' ).onclick = () =>
 {
-	const status = current !== null ? 'recording your walk' : 'open (not recording)';
+	const status = ( current !== null ) ? 'recording your walk' : 'open but not recording';
 	const msg    = $( '#blackMsg' );
 
-	msg.textContent = 'Screen blacked out to save battery.\n\nThe phone is still on and Trailweaver is ' + status + '.\n\nTap anywhere to bring the screen back.';
+	msg.textContent = 'Screen blacked out to save battery.\n\nThe phone is still on.\n\nTrailweaver is ' + status + '.\n\nTap anywhere to bring the screen back.';
 
 	msg.classList.remove( 'gone' );
 	$( '#blackLayer' ).classList.add( 'show' );
