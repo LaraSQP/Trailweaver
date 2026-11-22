@@ -7,8 +7,9 @@
 	--red   : #b3402a;
 	--line  : #dcd8cb;
 
-	--ic-locate : #3a6ea5;
-	--ic-toggle : #d1ffdd;
+	--ic-locate   : #609fe3;
+	--ic-blackout : #eeeeee;
+	--ic-toggle   : #d1ffdd;
 
 	--ic-add    : #2f4f3a;
 	--ic-rename : #ffea00;
@@ -304,6 +305,11 @@ input[type='range']
 	color: var(--ic-locate);
 }
 
+.ic-blackout
+{
+	color: var(--ic-blackout);
+}
+
 .ic-toggle
 {
 	color: var(--ic-toggle);
@@ -358,6 +364,20 @@ input[type='range']
 	border-radius   : 10px;
 	background      : #000;
 	color: var(        --ink);
+}
+
+#blackLayer
+{
+	display    : none;
+	position   : fixed;
+	inset      : 0;
+	background : #000;
+	z-index    : 3000;
+}
+
+#blackLayer.show
+{
+	display: block;
 }
 
 #panel.hide

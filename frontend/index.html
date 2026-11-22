@@ -34,6 +34,14 @@
 				</button>
 				<button
 					class      = "mapbtn"
+					id         = "blackout"
+					aria-label = "Black out the screen (tap to restore)"
+					title      = "Black out the screen (tap to restore)"
+				>
+					<span class="codicon codicon-eye-closed ico ic-blackout"></span>
+				</button>
+				<button
+					class      = "mapbtn"
 					id         = "toggle"
 					aria-label = "Show or hide controls"
 					title      = "Show or hide controls"
@@ -165,9 +173,12 @@
 						regularly. GPS needs HTTPS (or localhost). Keep the screen on while
 						recording: browsers pause GPS in the background.
 					</p>
+					<p class="hint" id="ver"></p>
 				</div>
 			</div>
 		</div>
+
+		<div id="blackLayer"></div>
 
 		<div id="toast"></div>
 

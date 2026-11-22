@@ -8,6 +8,9 @@
 
 const $ = ( selector ) => document.querySelector( selector );
 
+// Shown at the end of the Data tab; bump together with SHELL in sw.js so a mismatch reveals a stale file.
+const APP_VERSION = 'v8';
+
 const KEY   = 'trailweaver.tracks.v1';
 const CUR   = 'trailweaver.current.v1';
 const SET   = 'trailweaver.settings.v1';
@@ -368,6 +371,23 @@ $( '#toggle' ).onclick = () =>
 	setTimeout( () => map.invalidateSize(), 50 );
 };
 
+// Pure black layer to save battery on OLED screens; a tap anywhere restores the app.
+// The theme color is switched too, so the status bar goes black where the browser allows it.
+const themeMeta  = document.querySelector( 'meta[name="theme-color"]' );
+const themeColor = themeMeta.content;
+
+$( '#blackout' ).onclick = () =>
+{
+	$( '#blackLayer' ).classList.add( 'show' );
+	themeMeta.content = '#000000';
+};
+
+$( '#blackLayer' ).onclick = () =>
+{
+	$( '#blackLayer' ).classList.remove( 'show' );
+	themeMeta.content = themeColor;
+};
+
 // 3-point moving average to calm GPS jitter; the end points are kept as they are.
 function smooth( pts )
 {
@@ -657,6 +677,22 @@ function renderList()
 		el.appendChild( row );
 	}
 }
+
+// Data tab footer: app.js version plus the cache names created by sw.js. Two caches listed means
+// an update is waiting; a version that differs from the expected one means a stale file.
+const showVersion = async () =>
+{
+	let cache = 'none';
+	try
+	{
+		const names = ( await caches.keys() ).filter( ( k ) => k.startsWith( 'trailweaver-shell-' ) );
+		cache       = names.length > 0 ? names.map( ( k ) => k.slice( 18 ) ).join( ', ' ) : 'none';
+	} catch
+	{
+		cache = 'unavailable';
+	}
+	$( '#ver' ).textContent = 'Version: app ' + APP_VERSION + ' · cache ' + cache;
+};
 
 // Fit the map to the current area, or to the device position if the area has no tracks.
 function fitAll()
@@ -1350,6 +1386,8 @@ localStorage.removeItem( CUR );
 refresh();
 fitAll();
 autoSync();
+showVersion();
+
 if( 'serviceWorker' in navigator === true )
 {
 	navigator.serviceWorker.register( 'sw.js' ).catch( () => undefined );
