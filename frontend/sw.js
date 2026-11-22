@@ -3,7 +3,7 @@
 // version of the app shows up on the second launch after an upload.
 
 // Bump SHELL's version to make activate discard old caches.
-const SHELL = 'trailweaver-shell-v11';
+const SHELL = 'trailweaver-shell-v12';
 const TILES = 'trailweaver-tiles-v1';
 
 const ASSETS =
@@ -22,28 +22,30 @@ const ASSETS =
 // allSettled: one failed download (for example the CDN while offline) must not abort the install.
 self.addEventListener( 'install', ( e ) =>
 {
-	e.waitUntil(
-		caches
-			.open( SHELL )
-			.then( ( c ) => Promise.allSettled( ASSETS.map( ( a ) => c.add( new Request( a, { cache: 'reload' } ) ) ) ) )
-			.then( () => self.skipWaiting() )
-	);
+	e.waitUntil
+		(
+			caches
+				.open( SHELL )
+				.then( ( c ) => Promise.allSettled( ASSETS.map( ( a ) => c.add( new Request( a, { cache: 'reload' } ) ) ) ) )
+				.then( () => self.skipWaiting() )
+		);
 } );
 
 self.addEventListener( 'activate', ( e ) =>
 {
-	e.waitUntil(
-		caches
-			.keys()
-			.then( ( keys ) =>
-				Promise.all(
-					keys
-						.filter( ( k ) => [ SHELL, TILES ].includes( k ) === false )
-						.map( ( k ) => caches.delete( k ) )
+	e.waitUntil
+		(
+			caches
+				.keys()
+				.then( ( keys ) =>
+					Promise.all(
+						keys
+							.filter( ( k ) => [ SHELL, TILES ].includes( k ) === false )
+							.map( ( k ) => caches.delete( k ) )
+					)
 				)
-			)
-			.then( () => self.clients.claim() )
-	);
+				.then( () => self.clients.claim() )
+		);
 } );
 
 self.addEventListener( 'fetch', ( e ) =>
@@ -53,35 +55,41 @@ self.addEventListener( 'fetch', ( e ) =>
 	{
 		return;
 	}
+
 	const isTile = /tile\.(opentopomap|openstreetmap)\.org/.test( e.request.url );
-	e.respondWith(
-		( async () =>
-		{
-			const cache = await caches.open( isTile === true ? TILES : SHELL );
-			const hit   = await cache.match( e.request );
-			const net   = fetch( e.request )
-				.then( ( r ) =>
-				{
-					// Opaque responses (cross-origin tiles and scripts) cannot be inspected but can be cached.
-					if( r !== undefined && ( r.ok === true || r.type === 'opaque' ) )
+
+	e.respondWith
+		(
+			( async () =>
+			{
+				const cache = await caches.open( isTile === true ? TILES : SHELL );
+				const hit   = await cache.match( e.request );
+				const net   = fetch( e.request )
+					.then( ( r ) =>
 					{
-						cache.put( e.request, r.clone() );
-						// Tile cache limit: drop the oldest entry above 1500.
-						if( isTile === true )
+						// Opaque responses (cross-origin tiles and scripts) cannot be inspected but can be cached.
+						if( r !== undefined && ( r.ok === true || r.type === 'opaque' ) )
 						{
-							cache.keys().then( ( k ) =>
+							cache.put( e.request, r.clone() );
+
+							// Tile cache limit: drop the oldest entry above 1500.
+							if( isTile === true )
 							{
-								if( k.length > 1500 )
+								cache.keys().then( ( k ) =>
 								{
-									cache.delete( k[ 0 ] );
-								}
-							} );
+									if( k.length > 1500 )
+									{
+										cache.delete( k[ 0 ] );
+									}
+								} );
+							}
 						}
-					}
-					return r;
-				} )
-				.catch( () => hit );
-			return hit !== undefined ? hit : net;
-		} )()
-	);
+
+						return r;
+					} )
+					.catch( () => hit );
+
+				return hit !== undefined ? hit : net;
+			} )()
+		);
 } );
