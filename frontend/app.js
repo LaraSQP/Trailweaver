@@ -681,6 +681,79 @@ const iconButton = ( icon, tone, label ) =>
 	return b;
 };
 
+// Move dialog: one radio per other area. Tapping an area moves the track at once; Cancel, the
+// backdrop or the Android back button closes it without changes
+const moveDlg = document.createElement( 'dialog' );
+
+moveDlg.className = 'moveDlg';
+
+moveDlg.onclick = ( e ) =>
+{
+	if( e.target === moveDlg )
+	{
+		moveDlg.close();
+	}
+};
+
+document.body.appendChild( moveDlg );
+
+const moveTrack = ( t, a ) =>
+{
+	t.area    = a.id;
+	t.updated = Date.now();
+
+	autoSync();
+	save( KEY, tracks );
+	refresh();
+	toast( 'Moved to ' + a.name );
+};
+
+const pickArea = ( t, others ) =>
+{
+	const body     = document.createElement( 'div' );
+	body.className = 'moveBody';
+
+	const title       = document.createElement( 'p' );
+	title.className   = 'moveTitle';
+	title.textContent = 'Move "' + t.name + '" to:';
+
+	const list     = document.createElement( 'div' );
+	list.className = 'moveList';
+
+	for( const a of others )
+	{
+		const row = document.createElement( 'label' );
+
+		row.className = 'moveOpt';
+
+		const radio = document.createElement( 'input' );
+
+		radio.type = 'radio';
+		radio.name = 'moveArea';
+
+		const text       = document.createElement( 'span' );
+		text.textContent = a.name + ' (' + tracks.filter( ( x ) => x.area === a.id ).length + ')';
+
+		radio.onchange = () =>
+		{
+			moveDlg.close();
+			moveTrack( t, a );
+		};
+
+		row.append( radio, text );
+		list.appendChild( row );
+	}
+
+	const cancel       = document.createElement( 'button' );
+	cancel.className   = 'sm moveCancel';
+	cancel.textContent = 'Cancel';
+	cancel.onclick     = () => moveDlg.close();
+
+	body.append( title, list, cancel );
+	moveDlg.replaceChildren( body );
+	moveDlg.showModal();
+};
+
 function renderList()
 {
 	const el = $( '#list' );
@@ -748,19 +821,7 @@ function renderList()
 				return toast( 'Create another area first' );
 			}
 
-			const s = prompt( 'Move this track to which area?\n' + others.map( ( a, i ) => ( i + 1 ) + ') ' + a.name ).join( '\n' ) );
-			const a = others[ ( +s ) - 1 ];
-
-			if( a !== undefined )
-			{
-				t.area    = a.id;
-				t.updated = Date.now();
-
-				autoSync();
-				save( KEY, tracks );
-				refresh();
-				toast( 'Moved to ' + a.name );
-			}
+			pickArea( t, others );
 		};
 
 		rn.onclick = () =>

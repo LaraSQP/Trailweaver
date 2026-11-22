@@ -401,6 +401,63 @@ input[type='range']
 	opacity: 0;
 }
 
+.moveDlg
+{
+	width   : min(320px, 90vw);
+	padding : 0;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(  --bg);
+	color: var(       --ink);
+}
+
+.moveDlg::backdrop
+{
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.moveBody
+{
+	padding: 14px;
+}
+
+.moveTitle
+{
+	margin        : 0 0 10px;
+	font-weight   : 600;
+	overflow-wrap : anywhere;
+}
+
+.moveList
+{
+	max-height : 50vh;
+	overflow   : auto;
+}
+
+.moveOpt
+{
+	display     : flex;
+	align-items : center;
+	gap         : 12px;
+	padding     : 12px 6px;
+	border-bottom: 1px solid var(--line);
+	font-size: 16px;
+}
+
+.moveOpt input
+{
+	flex   : 0 0 22px;
+	width  : 22px;
+	height : 22px;
+	accent-color: var(--green);
+}
+
+.moveCancel
+{
+	width      : 100%;
+	margin-top : 12px;
+}
+
 #panel.hide
 {
 	display: none;
