@@ -1,6 +1,6 @@
 # Trailweaver
 
-Trailweaver is a phone-first, offline-capable web app (or Progressive Web App, PWA) that records GPS tracks on your phone and highlights the paths that emerge where several different walks overlap.
+Trailweaver is a mobile-first, offline-capable web app (or Progressive Web App, PWA) that records GPS tracks on your phone and highlights the paths that emerge where several different walks overlap.
 
 Data stays in your browser, with optional sync to your own PHP and MySQL server.
 
