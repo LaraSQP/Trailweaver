@@ -11,6 +11,10 @@
 			rel  = "stylesheet"
 			href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
 		/>
+		<link
+			rel  = "stylesheet"
+			href = "https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.45/dist/codicon.css"
+		/>
 		<link rel="stylesheet" href="styles.css" />
 	</head>
 
@@ -20,8 +24,22 @@
 			<div id="map"></div>
 
 			<div id="mapBtns">
-				<button class = "mapbtn" id="locate" aria-label="Center on my location">◎</button>
-				<button class = "mapbtn" id="toggle" aria-label="Show or hide controls">✕</button>
+				<button
+					class      = "mapbtn"
+					id         = "locate"
+					aria-label = "Center on my location"
+					title      = "Center on my location"
+				>
+					<span class="codicon codicon-location ico ic-locate"></span>
+				</button>
+				<button
+					class      = "mapbtn"
+					id         = "toggle"
+					aria-label = "Show or hide controls"
+					title      = "Show or hide controls"
+				>
+					<span id="toggleIcon" class="codicon codicon-close ico ic-toggle"></span>
+				</button>
 			</div>
 
 			<div id="panel">
@@ -41,7 +59,7 @@
 				<div id="areaBar" class="row">
 					<select id    = "area" aria-label="Area"></select>
 					<button class = "sm areaBtn" id="aNew" aria-label="New area" title="New area">
-						➕
+						<span class="codicon codicon-add ico ic-add"></span>
 					</button>
 					<button
 						class      = "sm areaBtn"
@@ -49,7 +67,7 @@
 						aria-label = "Rename area"
 						title      = "Rename area"
 					>
-						✏️
+						<span class="codicon codicon-edit ico ic-rename"></span>
 					</button>
 					<button
 						class      = "sm areaBtn"
@@ -57,7 +75,7 @@
 						aria-label = "Delete area"
 						title      = "Delete area"
 					>
-						🗑️
+						<span class="codicon codicon-trash ico ic-delete"></span>
 					</button>
 				</div>
 
@@ -114,11 +132,11 @@
 						id          = "srvUrl"
 						placeholder = "API address (leave empty = api.php on this site)"
 						style       = "
-							width         : 100%;
-							padding       : 8px;
-							margin-bottom : 6px;
-							border: 1px solid var(--line);
-							border-radius: 8px;
+							width         : 100%    ;
+							padding       : 8px     ;
+							margin-bottom : 6px     ;
+							border: 1px solid var(  --line);
+							border-radius: 8px      ;
 						"
 					/>
 					<input
@@ -126,11 +144,11 @@
 						type        = "password"
 						placeholder = "Secret token from config.php"
 						style       = "
-							width         : 100%;
-							padding       : 8px;
-							margin-bottom : 6px;
-							border: 1px solid var(--line);
-							border-radius: 8px;
+							width         : 100%    ;
+							padding       : 8px     ;
+							margin-bottom : 6px     ;
+							border: 1px solid var(  --line);
+							border-radius: 8px      ;
 						"
 					/>
 					<div class="row">

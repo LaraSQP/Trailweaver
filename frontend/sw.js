@@ -3,8 +3,8 @@
 // version of the app shows up on the second launch after an upload.
 
 // Bump SHELL's version to make activate discard old caches.
-const SHELL = 'trailweaver-shell-v6';
-const TILES = 'trailweaver-tiles-v1';
+const SHELL = 'trailweaver-shell-v7'  ;
+const TILES = 'trailweaver-tiles-v1'  ;
 
 const ASSETS =
 	[
@@ -16,6 +16,7 @@ const ASSETS =
 		'./styles.css',
 		'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
 		'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+		'https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.45/dist/codicon.css',
 	];
 
 // allSettled: one failed download (for example the CDN while offline) must not abort the install.
@@ -56,8 +57,8 @@ self.addEventListener( 'fetch', ( e ) =>
 	e.respondWith(
 		( async () =>
 		{
-			const cache = await caches.open( isTile === true ? TILES : SHELL );
-			const hit   = await cache.match( e.request );
+			const cache = await caches.open( isTile === true ? TILES : SHELL )  ;
+			const hit   = await cache.match( e.request )                          ;
 			const net   = fetch( e.request )
 				.then( ( r ) =>
 				{
