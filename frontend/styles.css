@@ -17,6 +17,7 @@
 
 	--ic-zoom : #3a6ea5;
 	--ic-move : #7a5aa6;
+	--ic-fav  : #b424e0;
 }
 
 *
@@ -252,6 +253,17 @@ input[type='range']
 	font-size : 17px;
 }
 
+.trackBar
+{
+	margin-bottom: 8px;
+}
+
+.trackBar button
+{
+	flex      : 1;
+	min-width : 0;
+}
+
 .hint
 {
 	color: var(--mute);
@@ -338,6 +350,11 @@ input[type='range']
 .ic-delete
 {
 	color: var(--ic-delete);
+}
+
+.ic-fav
+{
+	color: var(--ic-fav);
 }
 
 /* Over the map; above Leaflet's own controls (z-index 1000) */

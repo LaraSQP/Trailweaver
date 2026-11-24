@@ -21,7 +21,7 @@ const load = ( key, fallback ) =>
 	{
 		const raw = localStorage.getItem( key );
 
-		return raw !== null ? JSON.parse( raw ) : fallback;
+		return ( raw !== null ) ? JSON.parse( raw ) : fallback;
 	}
 	catch
 	{
@@ -88,10 +88,33 @@ const fmtT = ( secs ) =>
 	const m = Math.floor( ( secs % 3600 ) / 60 );
 
 	return (
-		( h > 0 ? h + ':' + String( m ).padStart( 2, '0' ) : m ) +
+		( ( h > 0 ) ? h + ':' + String( m ).padStart( 2, '0' ) : m ) +
 		':' +
 		String( secs % 60 ).padStart( 2, '0' )
 	);
+};
+
+// Elapsed time as 1h 25m, or 15m under an hour; rounds to the closest minute but never below 1m
+const fmtDur = ( secs ) =>
+{
+	const mins = Math.max( 1, Math.round( secs / 60 ) );
+	const h    = Math.floor( mins / 60 );
+	const m    = mins % 60;
+
+	return ( h > 0 ? h + 'h ' : '' ) + m + 'm';
+};
+
+// Seconds from the start tap to the last point; 0 when the track has no usable times
+const trackSecs = ( t ) =>
+{
+	const last = t.pts[ t.pts.length - 1 ];
+
+	if( ( last === undefined ) || ( Number.isFinite( t.start ) === false ) || ( t.start <= 0 ) || ( Number.isFinite( last[ 2 ] ) === false ) )
+	{
+		return 0;
+	}
+
+	return Math.max( 0, last[ 2 ] - t.start );
 };
 
 // Data saved by older versions may lack "updated"; treat that as 0
@@ -665,6 +688,13 @@ function refresh()
 	renderList();
 }
 
+// Outlined heart when off, filled when on; always red through the ic-fav color
+const setFav = ( b, on ) =>
+{
+	b.firstChild.className = 'codicon codicon-heart' + ( on === true ? '-filled' : '' ) + ' ico ic-fav';
+
+	b.setAttribute( 'aria-pressed', on );
+};
 
 // Icon-only button. icon is a codicon name, tone picks the color class (ic-<tone> in styles.css)
 const iconButton = ( icon, tone, label ) =>
@@ -795,9 +825,11 @@ function renderList()
 			date.textContent = new Date( t.start * 1000 ).toLocaleString( [], { dateStyle: 'short', timeStyle: 'short' } );
 		}
 
-		const meta       = document.createElement( 'div' );
-		meta.className   = 'track-meta';
-		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts';
+		const meta     = document.createElement( 'div' );
+		meta.className = 'track-meta';
+
+		const secs       = trackSecs( t );
+		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts' + ( secs > 0 ? ' · ' + fmtDur( secs ) : '' );
 
 		info.append( name, date, meta );
 
@@ -808,8 +840,11 @@ function renderList()
 		const mv = iconButton( 'move', 'move', 'Move track to another area' );
 		const rn = iconButton( 'edit', 'rename', 'Rename track' );
 		const d  = iconButton( 'trash', 'delete', 'Delete track' );
+		const f  = iconButton( 'heart', 'fav', 'Favorite' );
 
-		actions.append( z, mv, rn, d );
+		setFav( f, t.favorite === true );
+
+		actions.append( z, mv, rn, d, f );
 		row.append( cb, info, actions );
 
 		mv.onclick = () =>
@@ -847,6 +882,16 @@ function renderList()
 			refresh();
 		};
 
+		f.onclick = () =>
+		{
+			t.favorite   = t.favorite !== true;
+			t.favUpdated = Date.now();
+
+			setFav( f, t.favorite );
+			save( KEY, tracks );
+			autoSync();
+		};
+
 		z.onclick = () => map.fitBounds( L.latLngBounds( t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) ), { padding: [ 30, 30 ] } );
 
 		d.onclick = () =>
@@ -866,6 +911,22 @@ function renderList()
 		el.appendChild( row );
 	}
 }
+
+// Sets the visible flag of every track in this area; "rule" decides the value per track
+const checkTracks = ( rule ) =>
+{
+	for( const t of areaTracks() )
+	{
+		t.visible = rule( t );
+	}
+
+	save( KEY, tracks );
+	refresh();
+};
+
+$( '#chkAll' ).onclick  = () => checkTracks( () => true );
+$( '#chkNone' ).onclick = () => checkTracks( () => false );
+$( '#chkFav' ).onclick  = () => checkTracks( ( t ) => ( t.visible !== false ) || ( t.favorite === true ) );
 
 // Data tab footer: app.js version plus the cache names created by sw.js. Two caches listed means
 // an update is waiting; a version that differs from the expected one means a stale file
@@ -1454,6 +1515,7 @@ async function syncNow( manual )
 		const dA   = areas.filter( ( a ) => updatedOf( a ) > srv.push );
 		const dT   = tracks.filter( ( t ) => updatedOf( t ) > srv.push );
 		const dD   = tomb.filter( ( d ) => d.updated > srv.push );
+		const dF   = tracks.filter( ( t ) => ( t.favUpdated === undefined ? 0 : t.favUpdated ) > srv.push );
 		const slim = ( t ) =>
 		( {
 			id      : String( t.id ),
@@ -1489,6 +1551,7 @@ async function syncNow( manual )
 				areas   : first === true ? dA : [],
 				deleted : first === true ? dD : [],
 				tracks  : chunks[ i ].map( slim ),
+				favs    : last === true ? dF.map( ( t ) => ( { id: String( t.id ), favorite: t.favorite === true } ) ) : [],
 			};
 			const r = await fetch( srvUrl(),
 				{
@@ -1586,6 +1649,30 @@ async function syncNow( manual )
 				changed = true;
 			}
 		}
+
+		// The server returns the ids of all favorites; the flags follow it, except ones toggled during this sync
+		if( res.favs !== undefined )
+		{
+			const srvFavs = new Set( res.favs.map( String ) );
+
+			for( const t of tracks )
+			{
+				if( ( t.favUpdated === undefined ? 0 : t.favUpdated ) > startedAt )
+				{
+					continue;
+				}
+
+				const fav = srvFavs.has( String( t.id ) );
+
+				if( ( t.favorite === true ) !== fav )
+				{
+					t.favorite = fav;
+
+					changed = true;
+				}
+			}
+		}
+
 		// Tracks whose area was deleted elsewhere move to the first area
 		for( const t of tracks )
 		{

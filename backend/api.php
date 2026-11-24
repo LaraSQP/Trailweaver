@@ -78,7 +78,7 @@ catch (Exception $e)
 $db->exec('CREATE TABLE IF NOT EXISTS tw_areas ( id VARCHAR(64) NOT NULL PRIMARY KEY, name VARCHAR(200) NOT NULL DEFAULT \'\', updated BIGINT NOT NULL DEFAULT 0, deleted TINYINT(1) NOT NULL DEFAULT 0, srv BIGINT NOT NULL DEFAULT 0, KEY idx_areas_srv (srv) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 
 // pts holds the whole point list as JSON text: [[lat,lng,unixSeconds],...].
-$db->exec('CREATE TABLE IF NOT EXISTS tw_tracks ( id VARCHAR(64) NOT NULL PRIMARY KEY, area VARCHAR(64) NOT NULL DEFAULT \'\', name VARCHAR(200) NOT NULL DEFAULT \'\', t_start BIGINT NOT NULL DEFAULT 0, pts MEDIUMTEXT NOT NULL, updated BIGINT NOT NULL DEFAULT 0, deleted TINYINT(1) NOT NULL DEFAULT 0, srv BIGINT NOT NULL DEFAULT 0, KEY idx_tracks_srv (srv) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+$db->exec('CREATE TABLE IF NOT EXISTS tw_tracks ( id VARCHAR(64) NOT NULL PRIMARY KEY, area VARCHAR(64) NOT NULL DEFAULT \'\', name VARCHAR(200) NOT NULL DEFAULT \'\', t_start BIGINT NOT NULL DEFAULT 0, pts MEDIUMTEXT NOT NULL, updated BIGINT NOT NULL DEFAULT 0, deleted TINYINT(1) NOT NULL DEFAULT 0, favorite TINYINT(1) NOT NULL DEFAULT 0, srv BIGINT NOT NULL DEFAULT 0, KEY idx_tracks_srv (srv) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 // END DB-SETUP
 
 // Server clock is used for "since" so device clock differences do not matter.
@@ -144,13 +144,24 @@ try
       continue;
     }
     $id = (string) $t['id'];
-    $u = (int) field($t, 'updated', 0);
+    $u  = (int) field($t, 'updated', 0);
     if ($newer('tw_tracks', $id, $u) === false)
     {
       continue;
     }
-    $db->prepare('REPLACE INTO tw_tracks(id,area,name,t_start,pts,updated,deleted,srv) VALUES(?,?,?,?,?,?,0,?)')->execute([$id, $str(field($t, 'area', '')), $str(field($t, 'name', '')), (int) field($t, 'start', 0), json_encode($t['pts']), $u, $now]);
+    $db->prepare('INSERT INTO tw_tracks(id,area,name,t_start,pts,updated,deleted,srv) VALUES(?,?,?,?,?,?,0,?) ON DUPLICATE KEY UPDATE area=VALUES(area), name=VALUES(name), t_start=VALUES(t_start), pts=VALUES(pts), updated=VALUES(updated), deleted=0, srv=VALUES(srv)')->execute([$id, $str(field($t, 'area', '')), $str(field($t, 'name', '')), (int) field($t, 'start', 0), json_encode($t['pts']), $u, $now]);
   }
+
+  // Only the flag is written, so a favorite change never touches the rest of the row
+  foreach (field($in, 'favs', []) as $f)
+  {
+    if ((is_array($f) === false) || ($okId(field($f, 'id', null)) === false))
+    {
+      continue;
+    }
+    $db->prepare('UPDATE tw_tracks SET favorite=? WHERE id=? AND deleted=0')->execute([(field($f, 'favorite', false) === true) ? 1 : 0, $f['id']]);
+  }
+
 
   foreach (field($in, 'deleted', []) as $d)
   {
@@ -158,8 +169,8 @@ try
     {
       continue;
     }
-    $id = (string) $d['id'];
-    $u = (int) field($d, 'updated', 0);
+    $id    = (string) $d['id'];
+    $u     = (int) field($d, 'updated', 0);
     $table = ($d['t'] === 'track') ? 'tw_tracks' : 'tw_areas';
     if ($newer($table, $id, $u) === false)
     {
@@ -212,5 +223,7 @@ $tracks = array_map(function ($r)
   $pts = json_decode($r['pts'], true);
   return ['id' => $r['id'], 'area' => $r['area'], 'name' => $r['name'], 'start' => (int) $r['t_start'], 'pts' => (is_array($pts) === true) ? $pts : [], 'updated' => (int) $r['updated'], 'deleted' => (bool) $r['deleted']];
 }, $s->fetchAll(PDO::FETCH_ASSOC));
+
+$favs = $db->query('SELECT id FROM tw_tracks WHERE favorite=1 AND deleted=0')->fetchAll(PDO::FETCH_COLUMN);
 
 echo json_encode(['ok' => true, 'now' => $now, 'areas' => $areas, 'tracks' => $tracks]);

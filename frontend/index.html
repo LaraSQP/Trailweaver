@@ -94,8 +94,16 @@
 					<button data-t = "data">Data</button>
 				</div>
 
-				<div id="t-tracks" class="tab active"><div id="list"></div></div>
+				<div id="t-tracks" class="tab active">
+					<div class="row trackBar">
+						<button class = "sm" id="chkAll">Check all</button>
+						<button class = "sm" id="chkNone">Uncheck all</button>
+						<button class = "sm" id="chkFav">Check favorites</button>
+					</div>
 
+					<div id="list"></div>
+				</div>
+				
 				<div id="t-paths" class="tab">
 					<label class="s">
 						<span>Merge distance (cell size)<b id="vCell"></b></span>
