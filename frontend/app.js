@@ -607,7 +607,7 @@ function computePaths( list, cell, minPasses )
 
 				const before = counts.get( k );
 
-				counts.set( ( k, ( before === undefined ) ) ? 1 : before + 1 );
+				counts.set( k, ( before === undefined ) ? 1 : before + 1 );
 			}
 		}
 	}
@@ -1544,7 +1544,7 @@ async function syncNow( manual )
 		for( let i = 0; i < chunks.length; i++ )
 		{
 			const first = ( i === 0 );
-			const last  = ( i === chunks.length ) - 1;
+			const last  = ( i === ( chunks.length - 1 ) );
 			const body =
 			{
 				since   : ( last === true ) ? srv.pull : null,
@@ -1778,7 +1778,7 @@ fitAll();
 autoSync();
 showVersion();
 
-if( 'serviceWorker' in ( navigator === true ) )
+if( ( 'serviceWorker' in navigator ) === true ) 
 {
 	navigator.serviceWorker.register( 'sw.js' ).catch( () => undefined );
 }
