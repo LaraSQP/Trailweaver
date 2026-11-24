@@ -165,6 +165,7 @@ if( ( Array.isArray( areas ) === false ) || ( areas.length === 0 ) )
 
 	save( AREAS_KEY, areas );
 }
+
 for( const track of tracks )
 {
 	if( ( track.area === undefined ) || ( track.area === '' ) )
@@ -414,6 +415,7 @@ function onVisibility()
 		keepAwake();
 	}
 }
+
 document.addEventListener( 'visibilitychange', onVisibility );
 
 // Centers on the device position. Works without recording, so it asks for a one-time fix
@@ -423,16 +425,21 @@ $( '#locate' ).onclick = () =>
 	{
 		return toast( 'Geolocation not supported' );
 	}
+
 	toast( 'Locating…' );
+
 	navigator.geolocation.getCurrentPosition(
 		( position ) =>
 		{
 			const latLng = [ position.coords.latitude, position.coords.longitude ];
+
 			positionMarker.setLatLng( latLng );
+
 			if( map.hasLayer( positionMarker ) === false )
 			{
 				positionMarker.addTo( map );
 			}
+
 			map.setView( latLng, Math.max( map.getZoom(), 16 ) );
 		},
 		onGeoError,
@@ -532,6 +539,7 @@ function computePaths( trackList, cellSize, minPasses )
 
 	// Link key "cellA|cellB" (sorted, so both directions match) -> number of tracks that used it
 	const counts = new Map();
+
 	for( const track of usable )
 	{
 		const meterPoints  = smooth( track.pts ).map( ( point ) => [ ( point[ 1 ] - originLng ) * metersPerDegLng, ( point[ 0 ] - originLat ) * metersPerDegLat ] );
@@ -578,6 +586,7 @@ function computePaths( trackList, cellSize, minPasses )
 				addCell( meterPoints[ i - 1 ][ 0 ] + ( deltaX * step ) / steps, meterPoints[ i - 1 ][ 1 ] + ( deltaY * step ) / steps );
 			}
 		}
+
 		// Each link counts once per track, so pacing over the same ground is still one walk
 		const seen = new Set();
 
@@ -605,6 +614,7 @@ function computePaths( trackList, cellSize, minPasses )
 			}
 		}
 	}
+
 	const cellToLatLng = ( cell ) => [ originLat + ( ( cell[ 1 ] + 0.5 ) * cellSize ) / metersPerDegLat, originLng + ( ( cell[ 0 ] + 0.5 ) * cellSize ) / metersPerDegLng ];
 	const edges        = [];
 
@@ -829,7 +839,7 @@ function renderList()
 		const actions     = document.createElement( 'div' );
 		actions.className = 'track-actions';
 
-		const zoomButton     = iconButton( 'location', 'zoom', 'Find track on map' );
+		const zoomButton     = iconButton( 'location', 'locate', 'Find track on map' );
 		const moveButton     = iconButton( 'move', 'move', 'Move track to another area' );
 		const renameButton   = iconButton( 'edit', 'rename', 'Rename track' );
 		const deleteButton   = iconButton( 'trash', 'delete', 'Delete track' );
@@ -1055,6 +1065,7 @@ const exportGpx = ( trackList, fileName ) =>
 
 			segment += `<trkpt lat = "${point[ 0 ]}" lon="${point[ 1 ]}">${timeTag}</trkpt>`;
 		}
+
 		trackXml.push( `<trk><name>${escapeXml( track.name )}</name><type>trailweaver:${escapeXml( areaName )}</type><trkseg>${segment}</trkseg></trk>` );
 	}
 
@@ -1110,6 +1121,7 @@ $( '#imp' ).onclick = () => $( '#file' ).click();
 $( '#file' ).onchange = async ( event ) =>
 {
 	let added = 0;
+
 	for( const file of event.target.files )
 	{
 		const doc        = new DOMParser().parseFromString( await file.text(), 'text/xml' );
@@ -1174,6 +1186,7 @@ $( '#file' ).onchange = async ( event ) =>
 			}
 		}
 	}
+
 	event.target.value = '';
 
 	save( TRACKS_KEY, tracks );
@@ -1242,6 +1255,7 @@ $( '#demo' ).onclick = () =>
 				pts.push( [ +( origin[ 0 ] + y * degPerMeterLat ).toFixed( 6 ), +( origin[ 1 ] + x * degPerMeterLng ).toFixed( 6 ), time ] );
 			}
 		}
+
 		const track =
 		{
 			area    : settings.area,
@@ -1255,6 +1269,7 @@ $( '#demo' ).onclick = () =>
 
 		tracks.push( track );
 	}
+
 	save( TRACKS_KEY, tracks );
 	refresh();
 	fitAll();
@@ -1276,6 +1291,7 @@ function renderAreas()
 		{
 			option.selected = true;
 		}
+
 		select.appendChild( option );
 	}
 }
@@ -1322,6 +1338,7 @@ const nearestMeters = ( trackList, latLng ) =>
 			}
 		}
 	}
+
 	return best;
 };
 
@@ -1363,6 +1380,7 @@ function checkArea( latLng )
 		{
 			setArea( nearby[ 0 ].area.id );
 		}
+
 		return;
 	}
 
@@ -1410,6 +1428,7 @@ $( '#aDel' ).onclick = () =>
 	{
 		return toast( 'Keep at least one area' );
 	}
+
 	const trackCount = areaTracks().length;
 
 	if( confirm( 'Delete "' + currentArea().name + '" and its ' + trackCount + ' track(s)?' ) === true )
@@ -1434,6 +1453,12 @@ $( '#aDel' ).onclick = () =>
 // Deletions travel as tombstones because a deleted item no longer exists to upload
 const SERVER_KEY     = 'trailweaver.server.v1';
 const TOMBSTONES_KEY = 'trailweaver.tomb.v1';
+
+
+// Upload limits per request. A point is about 34 bytes of JSON, so 40000 points stay under 1.5 MB,
+// which fits hosts with a 2 MB post_max_size
+const MAX_CHUNK_TRACKS = 20;
+const MAX_CHUNK_POINTS = 40000;
 
 // pull: server clock (ms) from the last sync, sent back as "since"
 // push: device clock (ms) when the last sync started; items updated after it are unsent
@@ -1490,6 +1515,7 @@ async function syncNow( manual )
 		{
 			toast( 'Stop recording first, it syncs automatically afterwards' );
 		}
+
 		return;
 	}
 
@@ -1516,14 +1542,28 @@ async function syncNow( manual )
 			pts     : track.pts,
 		} );
 
-		// Upload 20 tracks per request. Only the last request asks for the server's changes (since is
-		// set); earlier ones send since: null, meaning "store only"
-		const chunks = [];
+		// Upload in chunks limited by track count and by point count; a single track over the point
+		// limit goes alone. Only the last request asks for the server's changes (since is set);
+		// earlier ones send since: null, meaning "store only"
+		const chunks    = [];
+		let chunkPoints = 0;
 
-		for( let i = 0; i < changedTracks.length; i += 20 )
+		for( const track of changedTracks )
 		{
-			chunks.push( changedTracks.slice( i, i + 20 ) );
+			const lastChunk = chunks[ chunks.length - 1 ];
+
+			if( ( lastChunk === undefined ) || ( lastChunk.length >= MAX_CHUNK_TRACKS ) || ( chunkPoints + track.pts.length > MAX_CHUNK_POINTS ) )
+			{
+				chunks.push( [] );
+
+				chunkPoints = 0;
+			}
+
+			chunks[ chunks.length - 1 ].push( track );
+
+			chunkPoints += track.pts.length;
 		}
+
 		if( chunks.length === 0 )
 		{
 			chunks.push( [] );
@@ -1571,6 +1611,7 @@ async function syncNow( manual )
 
 			reply = await httpResponse.json();
 		}
+
 		// Merge the server's changes. A deletion is ignored if the local copy is newer, and the last area is never removed
 		let changed       = false;
 		const serverAreas = ( reply.areas === undefined ) ? [] : reply.areas;
@@ -1601,6 +1642,7 @@ async function syncNow( manual )
 				changed                = true;
 			}
 		}
+
 		const serverTracks = ( reply.tracks === undefined ) ? [] : reply.tracks;
 
 		for( const serverTrack of serverTracks )
@@ -1678,6 +1720,7 @@ async function syncNow( manual )
 
 			save( SETTINGS_KEY, settings );
 		}
+
 		server.pull = reply.now;
 		server.push = startedAt;
 
@@ -1731,6 +1774,7 @@ $( '#srvSave' ).onclick = () =>
 		server.pull = 0;
 		server.push = 0;
 	}
+
 	server.url   = url;
 	server.token = token;
 
@@ -1744,6 +1788,7 @@ window.addEventListener( 'online', autoSync );
 
 // Boot. An unfinished recording left in storage means the app closed or crashed mid-walk
 const unfinishedWalk = load( CURRENT_KEY, null );
+
 if( ( unfinishedWalk !== null )
 	&& ( unfinishedWalk.pts !== undefined )
 	&& ( unfinishedWalk.pts.length > 1 )
@@ -1761,6 +1806,7 @@ if( ( unfinishedWalk !== null )
 	tracks.push( unfinishedWalk );
 	save( TRACKS_KEY, tracks );
 }
+
 localStorage.removeItem( CURRENT_KEY );
 
 refresh();

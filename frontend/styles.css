@@ -1,21 +1,24 @@
 :root
 {
-	--bg    : #f6f4ee;
-	--ink   : #1f2a22;
-	--mute  : #6b766d;
-	--green : #2f4f3a;
-	--red   : #b3402a;
-	--line  : #dcd8cb;
+	color-scheme: dark;
+
+	--bg      : #181A1B;
+	--ink     : #e8ebe5;
+	--mute    : #9ba69d;
+	--green   : #2f4f3a;
+	--red     : #b3402a;
+	--line    : #3a403c;
+	--surface : #232628;
+	--accent  : #7fcf9f;
 
 	--ic-locate   : #8cb9ea;
 	--ic-blackout : #eeeeee;
 	--ic-toggle   : #d1ffdd;
 
-	--ic-add    : #2f4f3a;
+	--ic-add    : #7fcf9f;
 	--ic-rename : #ffea00;
-	--ic-delete : #8f2f1f;
+	--ic-delete : #e0624a;
 
-	--ic-zoom : #3a6ea5;
 	--ic-move : #7a5aa6;
 	--ic-fav  : #72CDA4;
 }
@@ -121,11 +124,20 @@ body
 button.sm
 {
 	border: 1px solid var(  --line);
-	background    : #fff;
+	background: var(        --surface);
 	border-radius : 8px;
 	padding       : 8px 10px;
 	font-size     : 13px;
 	color: var(--ink);
+}
+
+input:not([type='range']):not([type='checkbox']):not([type='radio']),
+select,
+textarea
+{
+	background: var(        --surface);
+	color: var(             --ink);
+	border: 1px solid var(  --line);
 }
 
 .tabs
@@ -148,8 +160,8 @@ button.sm
 
 .tabs button.active
 {
-	color: var(         --green);
-	border-color: var(  --green);
+	color: var(         --accent);
+	border-color: var(  --accent);
 	font-weight: 600;
 }
 
@@ -190,8 +202,8 @@ input[type='range']
 	gap                   : 8px;
 	padding               : 10px;
 	border-radius         : 10px;
-	background            : rgba(255, 255, 255, 0.55);
-	margin-bottom         : 8px;
+	background: var(--surface);
+	margin-bottom: 8px;
 	border: 1px solid var(--line);
 }
 
@@ -200,7 +212,7 @@ input[type='range']
 	width        : 18px;
 	height       : 18px;
 	margin       : 2px 0 0;
-	accent-color : #3a6ea5;
+	accent-color : #6aa3dc;
 }
 
 .track-info
@@ -283,7 +295,7 @@ input[type='range']
 	padding       : 6px;
 	border-radius : 7px;
 	border: 1px solid var(  --line);
-	background  : #fff;
+	background: var(        --surface);
 	font-size   : 14px;
 	font-weight : 600;
 	color: var(--ink);
@@ -330,11 +342,6 @@ input[type='range']
 .ic-add
 {
 	color: var(--ic-add);
-}
-
-.ic-zoom
-{
-	color: var(--ic-zoom);
 }
 
 .ic-move
@@ -466,7 +473,7 @@ input[type='range']
 	flex   : 0 0 22px;
 	width  : 22px;
 	height : 22px;
-	accent-color: var(--green);
+	accent-color: var(--accent);
 }
 
 .moveCancel
