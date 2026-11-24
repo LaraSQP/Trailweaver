@@ -101,7 +101,7 @@ const fmtDur = ( secs ) =>
 	const h    = Math.floor( mins / 60 );
 	const m    = mins % 60;
 
-	return ( h > 0 ? h + 'h ' : '' ) + m + 'm';
+	return ( ( h > 0 ) ? h + 'h ' : '' ) + m + 'm';
 };
 
 // Seconds from the start tap to the last point; 0 when the track has no usable times
@@ -118,14 +118,14 @@ const trackSecs = ( t ) =>
 };
 
 // Data saved by older versions may lack "updated"; treat that as 0
-const updatedOf = ( item ) => ( item.updated === undefined ? 0 : item.updated );
+const updatedOf = ( item ) => ( ( item.updated === undefined ) ? 0 : item.updated );
 
 // A new walk is named after its area; the date is shown on its own line in the list
 const walkName = ( areaId ) =>
 {
-	const owner = areas.find( ( x ) => x.id === areaId );
+	const owner = areas.find( ( x ) => ( x.id === areaId ) );
 
-	return owner !== undefined ? owner.name : 'Walk';
+	return ( owner !== undefined ) ? owner.name : 'Walk';
 };
 
 let tracks = load( KEY, [] );
@@ -157,7 +157,7 @@ let timer     = null;
 let lastEdges = [];
 
 // Migration for data without areas or timestamps. The fixed 'default' id lets devices share one default area when synced
-if( Array.isArray( areas ) === false || areas.length === 0 )
+if( ( Array.isArray( areas ) === false ) || ( areas.length === 0 ) )
 {
 	areas = [ { id: 'default', name: 'My area', updated: Date.now() } ];
 
@@ -165,12 +165,12 @@ if( Array.isArray( areas ) === false || areas.length === 0 )
 }
 for( const t of tracks )
 {
-	if( t.area === undefined || t.area === '' )
+	if( ( t.area === undefined ) || ( t.area === '' ) )
 	{
 		t.area = areas[ 0 ].id;
 	}
 
-	if( t.updated === undefined || t.updated === 0 )
+	if( ( t.updated === undefined ) || ( t.updated === 0 ) )
 	{
 		t.updated = Date.now();
 	}
@@ -178,13 +178,13 @@ for( const t of tracks )
 
 for( const a of areas )
 {
-	if( a.updated === undefined || a.updated === 0 )
+	if( ( a.updated === undefined ) || ( a.updated === 0 ) )
 	{
 		a.updated = Date.now();
 	}
 }
 
-if( areas.some( ( a ) => a.id === settings.area ) === false )
+if( areas.some( ( a ) => ( a.id === settings.area ) ) === false )
 {
 	settings.area = areas[ 0 ].id;
 
@@ -193,8 +193,8 @@ if( areas.some( ( a ) => a.id === settings.area ) === false )
 
 save( KEY, tracks );
 
-const curArea    = () => areas.find( ( a ) => a.id === settings.area );
-const areaTracks = () => tracks.filter( ( t ) => t.area === settings.area );
+const curArea    = () => areas.find( ( a ) => ( a.id === settings.area ) );
+const areaTracks = () => tracks.filter( ( t ) => ( t.area === settings.area ) );
 
 const map = L.map( 'map', { zoomControl: false } ).setView( [ 20, 0 ], 2 );
 
@@ -256,7 +256,7 @@ function onPos( p )
 	}
 
 	// First usable fix of a recording: offer to switch or create an area if far from this one
-	if( current.pts.length === 0 && current.checked !== true )
+	if( ( current.pts.length === 0 ) && ( current.checked !== true ) )
 	{
 		current.checked = true;
 
@@ -266,7 +266,7 @@ function onPos( p )
 	const last    = current.pts[ current.pts.length - 1 ];
 	const minStep = Math.max( 3, Math.min( 8, c.accuracy / 2 ) );
 
-	if( last !== undefined && hav( last, ll ) < minStep )
+	if( ( last !== undefined ) && ( hav( last, ll ) < minStep ) )
 	{
 		return;
 	}
@@ -274,7 +274,7 @@ function onPos( p )
 	current.pts.push( [ +ll[ 0 ].toFixed( 6 ), +ll[ 1 ].toFixed( 6 ), Math.round( p.timestamp / 1000 ) ] );
 	live.addLatLng( ll );
 
-	if( current.pts.length === 1 || current.pts.length % 3 === 0 )
+	if( ( current.pts.length === 1 ) || ( current.pts.length % 3 === 0 ) )
 	{
 		map.panTo( ll, { animate: true } );
 	}
@@ -290,7 +290,7 @@ function onPos( p )
 
 function onErr( e )
 {
-	toast( e.code === 1 ? 'Location permission denied' : 'GPS: ' + e.message );
+	toast( ( e.code === 1 ) ? 'Location permission denied' : 'GPS: ' + e.message );
 }
 
 // Browsers pause GPS when the screen turns off, so ask to keep it on
@@ -364,7 +364,7 @@ function stopRec()
 		wake = null;
 	}
 
-	if( current !== null && current.pts.length >= 2 )
+	if( ( current !== null ) && ( current.pts.length >= 2 ) )
 	{
 		current.updated = Date.now();
 
@@ -415,7 +415,7 @@ $( '#rec' ).onclick = () =>
 // Returning to the app releases the wake lock, so request it again
 function onVisibility()
 {
-	if( document.visibilityState === 'visible' && current !== null )
+	if( ( document.visibilityState === 'visible' ) && ( current !== null ) )
 	{
 		keepAwake();
 	}
@@ -452,7 +452,7 @@ $( '#toggle' ).onclick = () =>
 	const hidden = $( '#panel' ).classList.toggle( 'hide' );
 	const icon   = $( '#toggleIcon' );
 	icon.classList.toggle( 'codicon-menu', hidden );
-	icon.classList.toggle( 'codicon-close', hidden === false );
+	icon.classList.toggle( 'codicon-close', ( hidden === false ) );
 	setTimeout( () => map.invalidateSize(), 50 );
 };
 
@@ -499,7 +499,7 @@ function smooth( pts )
 
 	for( let i = 0; i < pts.length; i++ )
 	{
-		if( i === 0 || i === pts.length - 1 )
+		if( ( i === 0 ) || ( i === pts.length - 1 ) )
 		{
 			out.push( pts[ i ] );
 		}
@@ -523,7 +523,7 @@ function smooth( pts )
 // Returns { edges: [{ a, b, n }], max, km } where km is the total length in meters
 function computePaths( list, cell, minPasses )
 {
-	const all = list.filter( ( t ) => t.pts.length > 1 );
+	const all = list.filter( ( t ) => ( t.pts.length > 1 ) );
 
 	if( all.length === 0 )
 	{
@@ -592,14 +592,14 @@ function computePaths( list, cell, minPasses )
 			const a = seq[ i - 1 ];
 			const b = seq[ i ];
 
-			if( a === null || b === null )
+			if( ( a === null ) || ( b === null ) )
 			{
 				continue;
 			}
 
 			const ka = a.join( ',' );
 			const kb = b.join( ',' );
-			const k  = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+			const k  = ( ka < kb ) ? ka + '|' + kb : kb + '|' + ka;
 
 			if( seen.has( k ) === false )
 			{
@@ -607,7 +607,7 @@ function computePaths( list, cell, minPasses )
 
 				const before = counts.get( k );
 
-				counts.set( k, before === undefined ? 1 : before + 1 );
+				counts.set( ( k, ( before === undefined ) ) ? 1 : before + 1 );
 			}
 		}
 	}
@@ -642,7 +642,7 @@ function computePaths( list, cell, minPasses )
 // Yellow (few passes) to red (many passes)
 const ramp = ( n, max ) =>
 {
-	const t = max <= settings.minp ? 1 : ( n - settings.minp ) / ( max - settings.minp );
+	const t = ( max <= settings.minp ) ? 1 : ( n - settings.minp ) / ( max - settings.minp );
 
 	return `hsl(${50 - 50 * t},90%,${52 - 8 * t}%)`;
 };
@@ -653,7 +653,7 @@ function refresh()
 	rawLayer.clearLayers();
 	pathLayer.clearLayers();
 
-	const vis = areaTracks().filter( ( t ) => t.visible !== false );
+	const vis = areaTracks().filter( ( t ) => ( t.visible !== false ) );
 
 	if( settings.showRaw === true )
 	{
@@ -691,7 +691,7 @@ function refresh()
 // Outlined heart when off, filled when on; always red through the ic-fav color
 const setFav = ( b, on ) =>
 {
-	b.firstChild.className = 'codicon codicon-heart' + ( on === true ? '-filled' : '' ) + ' ico ic-fav';
+	b.firstChild.className = 'codicon codicon-heart' + ( ( on === true ) ? '-filled' : '' ) + ' ico ic-fav';
 
 	b.setAttribute( 'aria-pressed', on );
 };
@@ -762,7 +762,7 @@ const pickArea = ( t, others ) =>
 		radio.name = 'moveArea';
 
 		const text       = document.createElement( 'span' );
-		text.textContent = a.name + ' (' + tracks.filter( ( x ) => x.area === a.id ).length + ')';
+		text.textContent = a.name + ' (' + tracks.filter( ( x ) => ( x.area === a.id ) ).length + ')';
 
 		radio.onchange = () =>
 		{
@@ -829,7 +829,7 @@ function renderList()
 		meta.className = 'track-meta';
 
 		const secs       = trackSecs( t );
-		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts' + ( secs > 0 ? ' · ' + fmtDur( secs ) : '' );
+		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts' + ( ( secs > 0 ) ? ' · ' + fmtDur( secs ) : '' );
 
 		info.append( name, date, meta );
 
@@ -842,14 +842,14 @@ function renderList()
 		const d  = iconButton( 'trash', 'delete', 'Delete track' );
 		const f  = iconButton( 'heart', 'fav', 'Favorite' );
 
-		setFav( f, t.favorite === true );
+		setFav( f, ( t.favorite === true ) );
 
 		actions.append( z, mv, rn, d, f );
 		row.append( cb, info, actions );
 
 		mv.onclick = () =>
 		{
-			const others = areas.filter( ( a ) => a.id !== settings.area );
+			const others = areas.filter( ( a ) => ( a.id !== settings.area ) );
 
 			if( others.length === 0 )
 			{
@@ -863,7 +863,7 @@ function renderList()
 		{
 			const n = prompt( 'Rename track:', t.name );
 
-			if( n !== null && n.trim() !== '' )
+			if( ( n !== null ) && ( n.trim() !== '' ) )
 			{
 				t.name    = n.trim();
 				t.updated = Date.now();
@@ -884,7 +884,7 @@ function renderList()
 
 		f.onclick = () =>
 		{
-			t.favorite   = t.favorite !== true;
+			t.favorite   = ( t.favorite !== true );
 			t.favUpdated = Date.now();
 
 			setFav( f, t.favorite );
@@ -900,7 +900,7 @@ function renderList()
 			{
 				tombstone( 'track', t.id );
 
-				tracks = tracks.filter( ( x ) => x !== t );
+				tracks = tracks.filter( ( x ) => ( x !== t ) );
 
 				save( KEY, tracks );
 				refresh();
@@ -938,7 +938,7 @@ const showVersion = async () =>
 	try
 	{
 		const names = ( await caches.keys() ).filter( ( k ) => k.startsWith( 'trailweaver-shell-' ) );
-		cache       = names.length > 0 ? names.map( ( k ) => k.slice( 18 ) ).join( ', ' ) : 'none';
+		cache       = ( names.length > 0 ) ? names.map( ( k ) => k.slice( 18 ) ).join( ', ' ) : 'none';
 	}
 	catch
 	{
@@ -1052,15 +1052,15 @@ const exportGpx = ( list, fname ) =>
 
 	for( const t of list )
 	{
-		const owner    = areas.find( ( a ) => a.id === t.area );
-		const areaName = owner !== undefined ? owner.name : '';
+		const owner    = areas.find( ( a ) => ( a.id === t.area ) );
+		const areaName = ( owner !== undefined ) ? owner.name : '';
 
 		let seg = '';
 
 		for( const p of t.pts )
 		{
 			const hasTime = Number.isFinite( p[ 2 ] ) === true && p[ 2 ] !== 0;
-			const time    = hasTime === true ? `<time>${new Date( p[ 2 ] * 1000 ).toISOString()}</time>` : '';
+			const time    = ( hasTime === true ) ? `<time>${new Date( p[ 2 ] * 1000 ).toISOString()}</time>` : '';
 
 			seg += `<trkpt lat = "${p[ 0 ]}" lon="${p[ 1 ]}">${time}</trkpt>`;
 		}
@@ -1132,7 +1132,7 @@ $( '#file' ).onchange = async ( e ) =>
 			for( const p of trk.querySelectorAll( 'trkpt' ) )
 			{
 				const timeEl = p.querySelector( 'time' );
-				const secs   = timeEl !== null ? Math.round( Date.parse( timeEl.textContent ) / 1000 ) : 0;
+				const secs   = ( timeEl !== null ) ? Math.round( Date.parse( timeEl.textContent ) / 1000 ) : 0;
 
 				pts.push( [ +p.getAttribute( 'lat' ), +p.getAttribute( 'lon' ), secs ] );
 			}
@@ -1141,14 +1141,14 @@ $( '#file' ).onchange = async ( e ) =>
 			{
 				// Only our own "trailweaver:" marker may create areas; other apps use <type> for things like "hiking"
 				const typeEl = trk.querySelector( 'type' );
-				const ty     = typeEl !== null ? typeEl.textContent.trim()               : '';
+				const ty     = ( typeEl !== null ) ? typeEl.textContent.trim()           : '';
 				const an     = ty.startsWith( 'trailweaver:' ) === true ? ty.slice( 12 ) : '';
 
 				let ar;
 
 				if( an !== '' )
 				{
-					ar = areas.find( ( a ) => a.name === an );
+					ar = areas.find( ( a ) => ( a.name === an ) );
 
 					if( ar === undefined )
 					{
@@ -1160,7 +1160,7 @@ $( '#file' ).onchange = async ( e ) =>
 				const nameEl = trk.querySelector( 'name' );
 				let nm       = f.name;
 
-				if( nameEl !== null && nameEl.textContent !== '' )
+				if( ( nameEl !== null ) && ( nameEl.textContent !== '' ) )
 				{
 					nm = nameEl.textContent;
 				}
@@ -1168,10 +1168,10 @@ $( '#file' ).onchange = async ( e ) =>
 				// "+ added" keeps ids unique within one import
 				const track =
 				{
-					area    : ar !== undefined ? ar.id : settings.area,
+					area    : ( ar !== undefined ) ? ar.id : settings.area,
 					updated : Date.now(),
 					id      : Date.now() + added,
-					name    : nm + ( i > 0 ? ' #' + ( i + 1 ) : '' ),
+					name    : nm + ( ( i > 0 ) ? ' #' + ( i + 1 ) : '' ),
 					start   : pts[ 0 ][ 2 ],
 					visible : true,
 					pts     : pts,
@@ -1196,7 +1196,7 @@ $( '#file' ).onchange = async ( e ) =>
 
 $( '#wipe' ).onclick = () =>
 {
-	const where = srv.token !== '' ? ', here and on the server' : ' on this device';
+	const where = ( srv.token !== '' ) ? ', here and on the server' : ' on this device';
 
 	if( confirm( 'Delete ALL tracks in ALL areas' + where + '?' ) === true )
 	{
@@ -1280,7 +1280,7 @@ function renderAreas()
 	{
 		const o       = document.createElement( 'option' );
 		o.value       = a.id;
-		o.textContent = a.name + ' (' + tracks.filter( ( t ) => t.area === a.id ).length + ')';
+		o.textContent = a.name + ' (' + tracks.filter( ( t ) => ( t.area === a.id ) ).length + ')';
 
 		if( a.id === settings.area )
 		{
@@ -1342,22 +1342,22 @@ function checkArea( ll )
 {
 	const mine = areaTracks();
 
-	if( mine.length === 0 || nearestM( mine, ll ) < 3000 )
+	if( ( mine.length === 0 ) || ( nearestM( mine, ll ) < 3000 ) )
 	{
 		return;
 	}
 
-	const others = areas.filter( ( a ) => a.id !== settings.area );
+	const others = areas.filter( ( a ) => ( a.id !== settings.area ) );
 	const dists  = others.map( ( a ) =>
 	( {
 		a: a,
 		d: nearestM(
-			tracks.filter( ( t ) => t.area === a.id ),
+			tracks.filter( ( t ) => ( t.area === a.id ) ),
 			ll
 		),
 	} ) );
 
-	const near = dists.filter( ( x ) => x.d < 1500 ).sort( ( x, y ) => x.d - y.d );
+	const near = dists.filter( ( x ) => ( x.d < 1500 ) ).sort( ( x, y ) => x.d - y.d );
 
 	if( near.length > 0 )
 	{
@@ -1381,7 +1381,7 @@ function checkArea( ll )
 	{
 		const n = prompt( 'Name for the new area:', 'New area' );
 
-		if( n !== null && n.trim() !== '' )
+		if( ( n !== null ) && ( n.trim() !== '' ) )
 		{
 			newArea( n );
 		}
@@ -1394,7 +1394,7 @@ $( '#aNew' ).onclick = () =>
 {
 	const n = prompt( 'Name for the new area:' );
 
-	if( n !== null && n.trim() !== '' )
+	if( ( n !== null ) && ( n.trim() !== '' ) )
 	{
 		newArea( n );
 	}
@@ -1404,7 +1404,7 @@ $( '#aRen' ).onclick = () =>
 {
 	const n = prompt( 'Rename area:', curArea().name );
 
-	if( n !== null && n.trim() !== '' )
+	if( ( n !== null ) && ( n.trim() !== '' ) )
 	{
 		curArea().name    = n.trim();
 		curArea().updated = Date.now();
@@ -1427,11 +1427,11 @@ $( '#aDel' ).onclick = () =>
 	{
 		const id = settings.area;
 
-		tracks.filter( ( t ) => t.area === id ).forEach( ( t ) => tombstone( 'track', t.id ) );
+		tracks.filter( ( t ) => ( t.area === id ) ).forEach( ( t ) => tombstone( 'track', t.id ) );
 		tombstone( 'area', id )
 			;
-		tracks = tracks.filter( ( t ) => t.area !== id );
-		areas  = areas.filter( ( a ) => a.id !== id );
+		tracks = tracks.filter( ( t ) => ( t.area !== id ) );
+		areas  = areas.filter( ( a ) => ( a.id !== id ) );
 
 		save( KEY, tracks );
 		save( AREAS, areas );
@@ -1514,8 +1514,8 @@ async function syncNow( manual )
 	{
 		const dA   = areas.filter( ( a ) => updatedOf( a ) > srv.push );
 		const dT   = tracks.filter( ( t ) => updatedOf( t ) > srv.push );
-		const dD   = tomb.filter( ( d ) => d.updated > srv.push );
-		const dF   = tracks.filter( ( t ) => ( t.favUpdated === undefined ? 0 : t.favUpdated ) > srv.push );
+		const dD   = tomb.filter( ( d ) => ( d.updated > srv.push ) );
+		const dF   = tracks.filter( ( t ) => ( ( t.favUpdated === undefined ) ? 0 : t.favUpdated ) > srv.push );
 		const slim = ( t ) =>
 		( {
 			id      : String( t.id ),
@@ -1543,15 +1543,15 @@ async function syncNow( manual )
 
 		for( let i = 0; i < chunks.length; i++ )
 		{
-			const first = i === 0;
-			const last  = i === chunks.length - 1;
+			const first = ( i === 0 );
+			const last  = ( i === chunks.length ) - 1;
 			const body =
 			{
-				since   : last === true ? srv.pull : null,
-				areas   : first === true ? dA : [],
-				deleted : first === true ? dD : [],
+				since   : ( last === true ) ? srv.pull : null,
+				areas   : ( first === true ) ? dA : [],
+				deleted : ( first === true ) ? dD : [],
 				tracks  : chunks[ i ].map( slim ),
-				favs    : last === true ? dF.map( ( t ) => ( { id: String( t.id ), favorite: t.favorite === true } ) ) : [],
+				favs    : ( last === true ) ? dF.map( ( t ) => ( { id: String( t.id ), favorite: ( t.favorite === true ) } ) ) : [],
 			};
 			const r = await fetch( srvUrl(),
 				{
@@ -1583,7 +1583,7 @@ async function syncNow( manual )
 		}
 		// Merge the server's changes. A deletion is ignored if the local copy is newer, and the last area is never removed
 		let changed    = false;
-		const srvAreas = res.areas === undefined ? [] : res.areas;
+		const srvAreas = ( res.areas === undefined ) ? [] : res.areas;
 
 		for( const a of srvAreas )
 		{
@@ -1591,7 +1591,7 @@ async function syncNow( manual )
 
 			if( a.deleted === true )
 			{
-				if( i >= 0 && areas.length > 1 && updatedOf( areas[ i ] ) <= a.updated )
+				if( ( i >= 0 ) && ( areas.length > 1 ) && ( updatedOf( areas[ i ] ) <= a.updated ) )
 				{
 					areas.splice( i, 1 );
 
@@ -1611,7 +1611,7 @@ async function syncNow( manual )
 				changed            = true;
 			}
 		}
-		const srvTracks = res.tracks === undefined ? [] : res.tracks;
+		const srvTracks = ( res.tracks === undefined ) ? [] : res.tracks;
 
 		for( const t of srvTracks )
 		{
@@ -1619,7 +1619,7 @@ async function syncNow( manual )
 
 			if( t.deleted === true )
 			{
-				if( i >= 0 && updatedOf( tracks[ i ] ) <= t.updated )
+				if( ( i >= 0 ) && ( updatedOf( tracks[ i ] ) <= t.updated ) )
 				{
 					tracks.splice( i, 1 );
 
@@ -1657,7 +1657,7 @@ async function syncNow( manual )
 
 			for( const t of tracks )
 			{
-				if( ( t.favUpdated === undefined ? 0 : t.favUpdated ) > startedAt )
+				if( ( ( t.favUpdated === undefined ) ? 0 : t.favUpdated ) > startedAt )
 				{
 					continue;
 				}
@@ -1682,7 +1682,7 @@ async function syncNow( manual )
 			}
 		}
 
-		if( areas.some( ( a ) => a.id === settings.area ) === false )
+		if( areas.some( ( a ) => ( a.id === settings.area ) ) === false )
 		{
 			settings.area = areas[ 0 ].id;
 
@@ -1727,7 +1727,7 @@ $( '#srvTok' ).value = srv.token;
 
 if( srv.token !== '' )
 {
-	setStatus( 'Ready. Last sync: ' + ( srv.pull > 0 ? new Date( srv.pull ).toLocaleString() : 'never' ) );
+	setStatus( 'Ready. Last sync: ' + ( ( srv.pull > 0 ) ? new Date( srv.pull ).toLocaleString() : 'never' ) );
 }
 
 // Changing the server or token resets the markers so the next sync transfers everything
@@ -1736,7 +1736,7 @@ $( '#srvSave' ).onclick = () =>
 	const url   = $( '#srvUrl' ).value.trim();
 	const token = $( '#srvTok' ).value.trim();
 
-	if( url !== srv.url || token !== srv.token )
+	if( ( url !== srv.url ) || ( token !== srv.token ) )
 	{
 		srv.pull = 0;
 		srv.push = 0;
@@ -1754,14 +1754,13 @@ window.addEventListener( 'online', autoSync );
 
 // Boot. An unfinished recording left in storage means the app closed or crashed mid-walk
 const crashed = load( CUR, null );
-if(
-	crashed !== null &&
-	crashed.pts !== undefined &&
-	crashed.pts.length > 1 &&
-	confirm( 'Recover an unfinished recording (' + fmtKm( trackLen( crashed.pts ) ) + ')?' ) === true
+if( ( crashed !== null )
+	&& ( crashed.pts !== undefined )
+	&& ( crashed.pts.length > 1 )
+	&& confirm( 'Recover an unfinished recording (' + fmtKm( trackLen( crashed.pts ) ) + ')?' ) === true
 )
 {
-	if( areas.some( ( a ) => a.id === crashed.area ) === false )
+	if( areas.some( ( a ) => ( a.id === crashed.area ) ) === false )
 	{
 		crashed.area = settings.area;
 	}
@@ -1779,7 +1778,7 @@ fitAll();
 autoSync();
 showVersion();
 
-if( 'serviceWorker' in navigator === true )
+if( 'serviceWorker' in ( navigator === true ) )
 {
 	navigator.serviceWorker.register( 'sw.js' ).catch( () => undefined );
 }

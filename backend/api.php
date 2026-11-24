@@ -226,4 +226,4 @@ $tracks = array_map(function ($r)
 
 $favs = $db->query('SELECT id FROM tw_tracks WHERE favorite=1 AND deleted=0')->fetchAll(PDO::FETCH_COLUMN);
 
-echo json_encode(['ok' => true, 'now' => $now, 'areas' => $areas, 'tracks' => $tracks]);
+echo json_encode(['ok' => true, 'now' => $now, 'areas' => $areas, 'tracks' => $tracks, 'favs' => $favs]);
