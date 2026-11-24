@@ -20,76 +20,76 @@ const ASSETS =
 	];
 
 // allSettled: one failed download (for example the CDN while offline) must not abort the install
-self.addEventListener( 'install', ( e ) =>
+self.addEventListener( 'install', ( event ) =>
 {
-	e.waitUntil
+	event.waitUntil
 		(
 			caches
 				.open( SHELL )
-				.then( ( c ) => Promise.allSettled( ASSETS.map( ( a ) => c.add( new Request( a, { cache: 'reload' } ) ) ) ) )
+				.then( ( shellCache ) => Promise.allSettled( ASSETS.map( ( asset ) => shellCache.add( new Request( asset, { cache: 'reload' } ) ) ) ) )
 				.then( () => self.skipWaiting() )
 		);
 } );
 
-self.addEventListener( 'activate', ( e ) =>
+self.addEventListener( 'activate', ( event ) =>
 {
-	e.waitUntil
+	event.waitUntil
 		(
 			caches
 				.keys()
-				.then( ( keys ) =>
+				.then( ( cacheNames ) =>
 					Promise.all(
-						keys
-							.filter( ( k ) => [ SHELL, TILES ].includes( k ) === false )
-							.map( ( k ) => caches.delete( k ) )
+						cacheNames
+							.filter( ( cacheName ) => [ SHELL, TILES ].includes( cacheName ) === false )
+							.map( ( cacheName ) => caches.delete( cacheName ) )
 					)
 				)
 				.then( () => self.clients.claim() )
 		);
 } );
 
-self.addEventListener( 'fetch', ( e ) =>
+self.addEventListener( 'fetch', ( event ) =>
 {
 	// The sync upload is a POST and must always reach the network
-	if( e.request.method !== 'GET' )
+	if( event.request.method !== 'GET' )
 	{
 		return;
 	}
 
-	const isTile = /tile\.(opentopomap|openstreetmap)\.org/.test( e.request.url );
+	const isTile = /tile\.(opentopomap|openstreetmap)\.org/.test( event.request.url );
 
-	e.respondWith
+	event.respondWith
 		(
 			( async () =>
 			{
-				const cache = await caches.open( isTile === true ? TILES : SHELL );
-				const hit   = await cache.match( e.request );
-				const net   = fetch( e.request )
-					.then( ( r ) =>
+				const cache           = await caches.open( ( isTile === true ) ? TILES : SHELL );
+				const cachedResponse  = await cache.match( event.request );
+				const networkResponse = fetch( event.request )
+					.then( ( response ) =>
 					{
 						// Opaque responses (cross-origin tiles and scripts) cannot be inspected but can be cached
-						if( r !== undefined && ( r.ok === true || r.type === 'opaque' ) )
+						if( ( response !== undefined ) && ( ( response.ok === true ) || ( response.type === 'opaque' ) ) )
 						{
-							cache.put( e.request, r.clone() );
+							cache.put( event.request, response.clone() );
 
 							// Tile cache limit: drop the oldest entry above 1500
 							if( isTile === true )
 							{
-								cache.keys().then( ( k ) =>
+								cache.keys().then( ( cachedRequests ) =>
 								{
-									if( k.length > 1500 )
+									if( cachedRequests.length > 1500 )
 									{
-										cache.delete( k[ 0 ] );
+										cache.delete( cachedRequests[ 0 ] );
 									}
 								} );
 							}
 						}
 
-						return r;
+						return response;
 					} )
-					.catch( () => hit );
+					.catch( () => cachedResponse );
 
-				return hit !== undefined ? hit : net;
+				return ( cachedResponse !== undefined ) ? cachedResponse : networkResponse;
 			} )()
 		);
 } );

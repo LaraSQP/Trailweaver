@@ -1,18 +1,19 @@
 'use strict';
 // Trailweaver app logic
 // Data (JSON in localStorage):
-//   track = { id, name, start, area, updated, visible, pts }   pts = [[lat, lng, unixSeconds], ...]
-//   area  = { id, name, updated }
-//   tomb  = { t: 'track' | 'area', id, updated }   a deletion waiting to be synced
+//   track     = { id, name, start, area, updated, visible, favorite, favUpdated, pts }   pts = [[lat, lng, unixSeconds], ...]
+//   area      = { id, name, updated }
+//   tombstone = { t: 'track' | 'area', id, updated }   a deletion waiting to be synced
 // "updated" is a millisecond timestamp bumped on every change; sync uses it for last-write-wins
+// "favUpdated" only marks an unsent favorite change; it never goes to the server
 
 const $ = ( selector ) => document.querySelector( selector );
 
-const KEY   = 'trailweaver.tracks.v1';
-const CUR   = 'trailweaver.current.v1';
-const SET   = 'trailweaver.settings.v1';
-const AREAS = 'trailweaver.areas.v1';
-const GEO   = 'geolocation' in navigator;
+const TRACKS_KEY   = 'trailweaver.tracks.v1';
+const CURRENT_KEY  = 'trailweaver.current.v1';
+const SETTINGS_KEY = 'trailweaver.settings.v1';
+const AREAS_KEY    = 'trailweaver.areas.v1';
+const HAS_GEO      = 'geolocation' in navigator;
 
 // localStorage can throw (private mode) or hold bad JSON, so always fall back
 const load = ( key, fallback ) =>
@@ -43,78 +44,79 @@ const save = ( key, value ) =>
 
 function toast( message )
 {
-	const el = $( '#toast' );
+	const box = $( '#toast' );
 
-	el.textContent = message;
+	box.textContent = message;
 
-	el.classList.add( 'show' );
-	clearTimeout( toast.h );
+	box.classList.add( 'show' );
+	clearTimeout( toast.hideTimer );
 
-	toast.h = setTimeout( () => el.classList.remove( 'show' ), 2600 );
+	toast.hideTimer = setTimeout( () => box.classList.remove( 'show' ), 2600 );
 }
 
 // Haversine distance in meters between [lat, lng] points; extra array elements are ignored
-function hav( a, b )
+function distanceMeters( from, to )
 {
-	const R    = 6371000;
-	const rad  = Math.PI / 180;
-	const dLat = ( b[ 0 ] - a[ 0 ] ) * rad;
-	const dLng = ( b[ 1 ] - a[ 1 ] ) * rad;
-	const h =
-		Math.sin( dLat / 2 ) ** 2 +
-		Math.cos( a[ 0 ] * rad ) * Math.cos( b[ 0 ] * rad ) * Math.sin( dLng / 2 ) ** 2;
+	const earthRadius = 6371000;
+	const degToRad    = Math.PI / 180;
+	const deltaLat    = ( to[ 0 ] - from[ 0 ] ) * degToRad;
+	const deltaLng    = ( to[ 1 ] - from[ 1 ] ) * degToRad;
+	const haversine =
+		Math.sin( deltaLat / 2 ) ** 2 +
+		Math.cos( from[ 0 ] * degToRad ) * Math.cos( to[ 0 ] * degToRad ) * Math.sin( deltaLng / 2 ) ** 2;
 
-	return 2 * R * Math.asin( Math.sqrt( h ) );
+	return 2 * earthRadius * Math.asin( Math.sqrt( haversine ) );
 }
 
-const trackLen = ( pts ) =>
+const trackLength = ( points ) =>
 {
-	let d = 0;
+	let meters = 0;
 
-	for( let i = 1; i < pts.length; i++ )
+	for( let i = 1; i < points.length; i++ )
 	{
-		d += hav( pts[ i - 1 ], pts[ i ] );
+		meters += distanceMeters( points[ i - 1 ], points[ i ] );
 	}
 
-	return d;
+	return meters;
 };
 
-const fmtKm = ( m ) => ( m / 1000 ).toFixed( 2 ) + ' km';
+const formatKm = ( meters ) => ( meters / 1000 ).toFixed( 2 ) + ' km';
 
-const fmtT = ( secs ) =>
+// Clock style time: m:ss, or h:mm:ss from one hour on
+const formatClock = ( seconds ) =>
 {
-	secs    = Math.max( 0, Math.round( secs ) );
-	const h = Math.floor( secs / 3600 );
-	const m = Math.floor( ( secs % 3600 ) / 60 );
+	seconds     = Math.max( 0, Math.round( seconds ) );
+	const hours = Math.floor( seconds / 3600 );
+	const mins  = Math.floor( ( seconds % 3600 ) / 60 );
 
 	return (
-		( ( h > 0 ) ? h + ':' + String( m ).padStart( 2, '0' ) : m ) +
+		( ( hours > 0 ) ? hours + ':' + String( mins ).padStart( 2, '0' ) : mins ) +
 		':' +
-		String( secs % 60 ).padStart( 2, '0' )
+		String( seconds % 60 ).padStart( 2, '0' )
 	);
 };
 
 // Elapsed time as 1h 25m, or 15m under an hour; rounds to the closest minute but never below 1m
-const fmtDur = ( secs ) =>
+const formatDuration = ( seconds ) =>
 {
-	const mins = Math.max( 1, Math.round( secs / 60 ) );
-	const h    = Math.floor( mins / 60 );
-	const m    = mins % 60;
+	const totalMins = Math.max( 1, Math.round( seconds / 60 ) );
+	const hours     = Math.floor( totalMins / 60 );
+	const mins      = totalMins % 60;
 
-	return ( ( h > 0 ) ? h + 'h ' : '' ) + m + 'm';
+	return ( ( hours > 0 ) ? hours + 'h ' : '' ) + mins + 'm';
 };
 
 // Seconds from the start tap to the last point; 0 when the track has no usable times
-const trackSecs = ( t ) =>
+const trackSeconds = ( track ) =>
 {
-	const last = t.pts[ t.pts.length - 1 ];
+	const lastPoint = track.pts[ track.pts.length - 1 ];
 
-	if( ( last === undefined ) || ( Number.isFinite( t.start ) === false ) || ( t.start <= 0 ) || ( Number.isFinite( last[ 2 ] ) === false ) )
+	if( ( lastPoint === undefined ) || ( Number.isFinite( track.start ) === false ) || ( track.start <= 0 ) || ( Number.isFinite( lastPoint[ 2 ] ) === false ) )
 	{
 		return 0;
 	}
 
-	return Math.max( 0, last[ 2 ] - t.start );
+	return Math.max( 0, lastPoint[ 2 ] - track.start );
 };
 
 // Data saved by older versions may lack "updated"; treat that as 0
@@ -123,13 +125,13 @@ const updatedOf = ( item ) => ( ( item.updated === undefined ) ? 0 : item.update
 // A new walk is named after its area; the date is shown on its own line in the list
 const walkName = ( areaId ) =>
 {
-	const owner = areas.find( ( x ) => ( x.id === areaId ) );
+	const owner = areas.find( ( area ) => ( area.id === areaId ) );
 
 	return ( owner !== undefined ) ? owner.name : 'Walk';
 };
 
-let tracks = load( KEY, [] );
-let areas  = load( AREAS, null );
+let tracks = load( TRACKS_KEY, [] );
+let areas  = load( AREAS_KEY, null );
 
 // Defaults for the three path sliders, also used by the "Reset to defaults" button
 // They are practical starting points for walking, not measured values; tune them to your terrain
@@ -147,79 +149,71 @@ const PATH_DEFAULTS = { cell: 12, minp: 3, maxacc: 25 };
 let settings = Object.assign
 	(
 		{ ...PATH_DEFAULTS, showRaw: true, area: null },
-		load( SET, {} )
+		load( SETTINGS_KEY, {} )
 	);
 
-let current   = null;
-let watchId   = null;
-let wake      = null;
-let timer     = null;
-let lastEdges = [];
+let activeWalk = null;
+let geoWatchId = null;
+let wakeLock   = null;
+let statsTimer = null;
+let lastEdges  = [];
 
 // Migration for data without areas or timestamps. The fixed 'default' id lets devices share one default area when synced
 if( ( Array.isArray( areas ) === false ) || ( areas.length === 0 ) )
 {
 	areas = [ { id: 'default', name: 'My area', updated: Date.now() } ];
 
-	save( AREAS, areas );
+	save( AREAS_KEY, areas );
 }
-for( const t of tracks )
+for( const track of tracks )
 {
-	if( ( t.area === undefined ) || ( t.area === '' ) )
+	if( ( track.area === undefined ) || ( track.area === '' ) )
 	{
-		t.area = areas[ 0 ].id;
+		track.area = areas[ 0 ].id;
 	}
 
-	if( ( t.updated === undefined ) || ( t.updated === 0 ) )
+	if( ( track.updated === undefined ) || ( track.updated === 0 ) )
 	{
-		t.updated = Date.now();
+		track.updated = Date.now();
 	}
 }
 
-for( const a of areas )
+for( const area of areas )
 {
-	if( ( a.updated === undefined ) || ( a.updated === 0 ) )
+	if( ( area.updated === undefined ) || ( area.updated === 0 ) )
 	{
-		a.updated = Date.now();
+		area.updated = Date.now();
 	}
 }
 
-if( areas.some( ( a ) => ( a.id === settings.area ) ) === false )
+if( areas.some( ( area ) => ( area.id === settings.area ) ) === false )
 {
 	settings.area = areas[ 0 ].id;
 
-	save( SET, settings );
+	save( SETTINGS_KEY, settings );
 }
 
-save( KEY, tracks );
+save( TRACKS_KEY, tracks );
 
-const curArea    = () => areas.find( ( a ) => ( a.id === settings.area ) );
-const areaTracks = () => tracks.filter( ( t ) => ( t.area === settings.area ) );
+const currentArea = () => areas.find( ( area ) => ( area.id === settings.area ) );
+const areaTracks  = () => tracks.filter( ( track ) => ( track.area === settings.area ) );
 
 const map = L.map( 'map', { zoomControl: false } ).setView( [ 20, 0 ], 2 );
 
 // The tile URL pattern is also matched in sw.js for caching
-const topo = L.tileLayer( 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
-	{
-		maxZoom     : 17,
-		attribution : '© OpenTopoMap, © OpenStreetMap',
-	} );
-const osm = L.tileLayer( 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-	{
-		maxZoom     : 19,
-		attribution : '© OpenStreetMap',
-	} );
+const topoLayer    = L.tileLayer( 'https://tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom   : 17, attribution: '© OpenTopoMap, © OpenStreetMap', } );
+const streetsLayer = L.tileLayer( 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom : 19, attribution: '© OpenStreetMap', } );
 
-topo.addTo( map );
+topoLayer.addTo( map );
 
-L.control.layers( { Topographic : topo, Streets: osm }, null, { position: 'topright' } ).addTo( map );
+L.control.layers( { Topographic : topoLayer, Streets: streetsLayer }, null, { position: 'topright' } ).addTo( map );
 L.control.zoom( { position      : 'bottomright' } ).addTo( map );
 
-// refresh() clears and redraws rawLayer and pathLayer; live is the line that grows while recording
-const rawLayer  = L.layerGroup().addTo( map );
-const pathLayer = L.layerGroup().addTo( map );
-const live      = L.polyline( [], { color: '#b3402a', weight: 4 } ).addTo( map );
-const me        = L.circleMarker( [ 0, 0 ],
+// refresh() clears and redraws rawLayer and pathLayer; liveLine is the line that grows while recording
+const rawLayer       = L.layerGroup().addTo( map );
+const pathLayer      = L.layerGroup().addTo( map );
+const liveLine       = L.polyline( [], { color: '#b3402a', weight: 4 } ).addTo( map );
+const positionMarker = L.circleMarker( [ 0, 0 ],
 	{
 		radius      : 8,
 		color       : '#fff',
@@ -229,68 +223,68 @@ const me        = L.circleMarker( [ 0, 0 ],
 	} );
 
 // Called for every GPS fix. While recording, drops fixes worse than maxacc and
-// fixes closer than minStep (3 to 8 m, half the reported accuracy) to the last saved point
-function onPos( p )
+// fixes closer than minStepMeters (3 to 8 m, half the reported accuracy) to the last saved point
+function onPosition( position )
 {
-	const c = p.coords;
+	const coords = position.coords;
 
-	$( '#sAcc' ).textContent = Math.round( c.accuracy ) + ' m';
+	$( '#sAcc' ).textContent = Math.round( coords.accuracy ) + ' m';
 
-	const ll = [ c.latitude, c.longitude ];
+	const latLng = [ coords.latitude, coords.longitude ];
 
-	me.setLatLng( ll );
+	positionMarker.setLatLng( latLng );
 
-	if( map.hasLayer( me ) === false )
+	if( map.hasLayer( positionMarker ) === false )
 	{
-		me.addTo( map );
+		positionMarker.addTo( map );
 	}
 
-	if( current === null )
+	if( activeWalk === null )
 	{
 		return;
 	}
 
-	if( c.accuracy > settings.maxacc )
+	if( coords.accuracy > settings.maxacc )
 	{
 		return;
 	}
 
 	// First usable fix of a recording: offer to switch or create an area if far from this one
-	if( ( current.pts.length === 0 ) && ( current.checked !== true ) )
+	if( ( activeWalk.pts.length === 0 ) && ( activeWalk.checked !== true ) )
 	{
-		current.checked = true;
+		activeWalk.checked = true;
 
-		checkArea( ll );
+		checkArea( latLng );
 	}
 
-	const last    = current.pts[ current.pts.length - 1 ];
-	const minStep = Math.max( 3, Math.min( 8, c.accuracy / 2 ) );
+	const lastPoint     = activeWalk.pts[ activeWalk.pts.length - 1 ];
+	const minStepMeters = Math.max( 3, Math.min( 8, coords.accuracy / 2 ) );
 
-	if( ( last !== undefined ) && ( hav( last, ll ) < minStep ) )
+	if( ( lastPoint !== undefined ) && ( distanceMeters( lastPoint, latLng ) < minStepMeters ) )
 	{
 		return;
 	}
 
-	current.pts.push( [ +ll[ 0 ].toFixed( 6 ), +ll[ 1 ].toFixed( 6 ), Math.round( p.timestamp / 1000 ) ] );
-	live.addLatLng( ll );
+	activeWalk.pts.push( [ +latLng[ 0 ].toFixed( 6 ), +latLng[ 1 ].toFixed( 6 ), Math.round( position.timestamp / 1000 ) ] );
+	liveLine.addLatLng( latLng );
 
-	if( ( current.pts.length === 1 ) || ( current.pts.length % 3 === 0 ) )
+	if( ( activeWalk.pts.length === 1 ) || ( activeWalk.pts.length % 3 === 0 ) )
 	{
-		map.panTo( ll, { animate: true } );
+		map.panTo( latLng, { animate: true } );
 	}
 
 	// Saved every 5th point so an unfinished walk can be recovered after a crash (see boot)
-	if( current.pts.length % 5 === 0 )
+	if( activeWalk.pts.length % 5 === 0 )
 	{
-		save( CUR, current );
+		save( CURRENT_KEY, activeWalk );
 	}
 
 	updateStats();
 }
 
-function onErr( e )
+function onGeoError( error )
 {
-	toast( ( e.code === 1 ) ? 'Location permission denied' : 'GPS: ' + e.message );
+	toast( ( error.code === 1 ) ? 'Location permission denied' : 'GPS: ' + error.message );
 }
 
 // Browsers pause GPS when the screen turns off, so ask to keep it on
@@ -298,7 +292,7 @@ async function keepAwake()
 {
 	try
 	{
-		wake = await navigator.wakeLock.request( 'screen' );
+		wakeLock = await navigator.wakeLock.request( 'screen' );
 	}
 	catch
 	{
@@ -308,23 +302,23 @@ async function keepAwake()
 
 function updateStats()
 {
-	if( current === null )
+	if( activeWalk === null )
 	{
 		return;
 	}
 
-	$( '#sDist' ).textContent = fmtKm( trackLen( current.pts ) );
-	$( '#sTime' ).textContent = fmtT( Date.now() / 1000 - current.start );
+	$( '#sDist' ).textContent = formatKm( trackLength( activeWalk.pts ) );
+	$( '#sTime' ).textContent = formatClock( Date.now() / 1000 - activeWalk.start );
 }
 
-function startRec()
+function startRecording()
 {
-	if( GEO === false )
+	if( HAS_GEO === false )
 	{
 		return toast( 'Geolocation not supported' );
 	}
 
-	current =
+	activeWalk =
 	{
 		id      : Date.now(),
 		name    : '',
@@ -334,9 +328,9 @@ function startRec()
 		pts     : [],
 	};
 
-	live.setLatLngs( [] );
+	liveLine.setLatLngs( [] );
 
-	watchId = navigator.geolocation.watchPosition( onPos, onErr,
+	geoWatchId = navigator.geolocation.watchPosition( onPosition, onGeoError,
 		{
 			enableHighAccuracy : true,
 			maximumAge         : 0,
@@ -345,7 +339,7 @@ function startRec()
 
 	keepAwake();
 
-	timer                   = setInterval( updateStats, 1000 );
+	statsTimer              = setInterval( updateStats, 1000 );
 	$( '#rec' ).textContent = '■ Stop recording';
 
 	$( '#rec' ).classList.add( 'on' );
@@ -353,40 +347,40 @@ function startRec()
 	$( '#area' ).disabled = true;
 }
 
-function stopRec()
+function stopRecording()
 {
-	navigator.geolocation.clearWatch( watchId );
-	clearInterval( timer );
+	navigator.geolocation.clearWatch( geoWatchId );
+	clearInterval( statsTimer );
 
-	if( wake !== null )
+	if( wakeLock !== null )
 	{
-		wake.release().catch( () => undefined );
-		wake = null;
+		wakeLock.release().catch( () => undefined );
+		wakeLock = null;
 	}
 
-	if( ( current !== null ) && ( current.pts.length >= 2 ) )
+	if( ( activeWalk !== null ) && ( activeWalk.pts.length >= 2 ) )
 	{
-		current.updated = Date.now();
+		activeWalk.updated = Date.now();
 
 		// Looked up here because checkArea may have switched the area after Start
-		current.name = walkName( current.area );
+		activeWalk.name = walkName( activeWalk.area );
 
 		// "checked" is a transient recording flag, not part of the saved track
-		delete current.checked;
+		delete activeWalk.checked;
 
-		tracks.push( current );
-		save( KEY, tracks );
-		toast( 'Saved ' + fmtKm( trackLen( current.pts ) ) );
+		tracks.push( activeWalk );
+		save( TRACKS_KEY, tracks );
+		toast( 'Saved ' + formatKm( trackLength( activeWalk.pts ) ) );
 	}
 	else
 	{
 		toast( 'Too short – discarded' );
 	}
 
-	current = null;
+	activeWalk = null;
 
-	localStorage.removeItem( CUR );
-	live.setLatLngs( [] );
+	localStorage.removeItem( CURRENT_KEY );
+	liveLine.setLatLngs( [] );
 
 	$( '#rec' ).textContent = '● Start recording';
 
@@ -402,20 +396,20 @@ function stopRec()
 
 $( '#rec' ).onclick = () =>
 {
-	if( current === null )
+	if( activeWalk === null )
 	{
-		startRec();
+		startRecording();
 	}
 	else
 	{
-		stopRec();
+		stopRecording();
 	}
 };
 
 // Returning to the app releases the wake lock, so request it again
 function onVisibility()
 {
-	if( ( document.visibilityState === 'visible' ) && ( current !== null ) )
+	if( ( document.visibilityState === 'visible' ) && ( activeWalk !== null ) )
 	{
 		keepAwake();
 	}
@@ -425,23 +419,23 @@ document.addEventListener( 'visibilitychange', onVisibility );
 // Centers on the device position. Works without recording, so it asks for a one-time fix
 $( '#locate' ).onclick = () =>
 {
-	if( GEO === false )
+	if( HAS_GEO === false )
 	{
 		return toast( 'Geolocation not supported' );
 	}
 	toast( 'Locating…' );
 	navigator.geolocation.getCurrentPosition(
-		( p ) =>
+		( position ) =>
 		{
-			const ll = [ p.coords.latitude, p.coords.longitude ];
-			me.setLatLng( ll );
-			if( map.hasLayer( me ) === false )
+			const latLng = [ position.coords.latitude, position.coords.longitude ];
+			positionMarker.setLatLng( latLng );
+			if( map.hasLayer( positionMarker ) === false )
 			{
-				me.addTo( map );
+				positionMarker.addTo( map );
 			}
-			map.setView( ll, Math.max( map.getZoom(), 16 ) );
+			map.setView( latLng, Math.max( map.getZoom(), 16 ) );
 		},
-		onErr,
+		onGeoError,
 		{ enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
 	);
 };
@@ -465,19 +459,19 @@ let blackTimer   = null;
 
 $( '#blackout' ).onclick = () =>
 {
-	const status = ( current !== null ) ? 'recording your walk' : 'open but not recording';
-	const msg    = $( '#blackMsg' );
+	const status  = ( activeWalk !== null ) ? 'recording your walk' : 'open but not recording';
+	const message = $( '#blackMsg' );
 
-	msg.textContent = 'Screen blacked out to save battery.\n\nThe phone is still on.\n\nTrailweaver is ' + status + '.\n\nTap anywhere to bring the screen back.';
+	message.textContent = 'Screen blacked out to save battery.\n\nThe phone is still on.\n\nTrailweaver is ' + status + '.\n\nTap anywhere to bring the screen back.';
 
-	msg.classList.remove( 'gone' );
+	message.classList.remove( 'gone' );
 	$( '#blackLayer' ).classList.add( 'show' );
 
 	themeMeta.content = '#000000';
 
 	clearTimeout( blackTimer );
 
-	blackTimer = setTimeout( () => msg.classList.add( 'gone' ), 10000 );
+	blackTimer = setTimeout( () => message.classList.add( 'gone' ), 10000 );
 };
 
 $( '#blackLayer' ).onclick = () =>
@@ -488,163 +482,162 @@ $( '#blackLayer' ).onclick = () =>
 };
 
 // 3-point moving average to calm GPS jitter; the end points are kept as they are
-function smooth( pts )
+function smooth( points )
 {
-	if( pts.length < 3 )
+	if( points.length < 3 )
 	{
-		return pts;
+		return points;
 	}
 
-	const out = [];
+	const smoothed = [];
 
-	for( let i = 0; i < pts.length; i++ )
+	for( let i = 0; i < points.length; i++ )
 	{
-		if( ( i === 0 ) || ( i === pts.length - 1 ) )
+		if( ( i === 0 ) || ( i === points.length - 1 ) )
 		{
-			out.push( pts[ i ] );
+			smoothed.push( points[ i ] );
 		}
 		else
 		{
-			out.push
+			smoothed.push
 				( [
-					( pts[ i - 1 ][ 0 ] + pts[ i ][ 0 ] + pts[ i + 1 ][ 0 ] ) / 3,
-					( pts[ i - 1 ][ 1 ] + pts[ i ][ 1 ] + pts[ i + 1 ][ 1 ] ) / 3,
+					( points[ i - 1 ][ 0 ] + points[ i ][ 0 ] + points[ i + 1 ][ 0 ] ) / 3,
+					( points[ i - 1 ][ 1 ] + points[ i ][ 1 ] + points[ i + 1 ][ 1 ] ) / 3,
 				] );
 		}
 	}
 
-	return out;
+	return smoothed;
 }
 
 // Path detection. A grid of cell-sized squares is laid over the ground and each track is converted
 // into the sequence of cells it passes through. Every step between neighboring cells is a "link"
 // Links used by at least minPasses DIFFERENT tracks are paths. Walks that stay within about one
 // cell of each other share cells, which is what merges meandering walks into one path
-// Returns { edges: [{ a, b, n }], max, km } where km is the total length in meters
-function computePaths( list, cell, minPasses )
+// Returns { edges: [{ from, to, passes }], maxPasses, totalMeters } where totalMeters is the total length of the paths
+function computePaths( trackList, cellSize, minPasses )
 {
-	const all = list.filter( ( t ) => ( t.pts.length > 1 ) );
+	const usable = trackList.filter( ( track ) => ( track.pts.length > 1 ) );
 
-	if( all.length === 0 )
+	if( usable.length === 0 )
 	{
-		return { edges: [], max: 0, km: 0 };
+		return { edges: [], maxPasses: 0, totalMeters: 0 };
 	}
 
 	// Local meters around the first point
-	const lat0 = all[ 0 ].pts[ 0 ][ 0 ];
-	const lng0 = all[ 0 ].pts[ 0 ][ 1 ];
-	const kx   = 111320 * Math.cos( ( lat0 * Math.PI ) / 180 );
-	const ky   = 110540;
+	const originLat       = usable[ 0 ].pts[ 0 ][ 0 ];
+	const originLng       = usable[ 0 ].pts[ 0 ][ 1 ];
+	const metersPerDegLng = 111320 * Math.cos( ( originLat * Math.PI ) / 180 );
+	const metersPerDegLat = 110540;
 
 	// Link key "cellA|cellB" (sorted, so both directions match) -> number of tracks that used it
 	const counts = new Map();
-	for( const t of all )
+	for( const track of usable )
 	{
-		const p   = smooth( t.pts ).map( ( q ) => [ ( q[ 1 ] - lng0 ) * kx, ( q[ 0 ] - lat0 ) * ky ] );
-		const seq = [];
-		let prev  = null;
+		const meterPoints  = smooth( track.pts ).map( ( point ) => [ ( point[ 1 ] - originLng ) * metersPerDegLng, ( point[ 0 ] - originLat ) * metersPerDegLat ] );
+		const cellSequence = [];
+		let previousKey    = null;
 
-		const add = ( x, y ) =>
+		const addCell = ( x, y ) =>
 		{
-			const cx  = Math.floor( x / cell );
-			const cy  = Math.floor( y / cell );
-			const key = cx + ',' + cy;
+			const cellX = Math.floor( x / cellSize );
+			const cellY = Math.floor( y / cellSize );
+			const key   = cellX + ',' + cellY;
 
-			if( key !== prev )
+			if( key !== previousKey )
 			{
-				seq.push( [ cx, cy ] );
-				prev = key;
+				cellSequence.push( [ cellX, cellY ] );
+				previousKey = key;
 			}
 		};
 
-		add( p[ 0 ][ 0 ], p[ 0 ][ 1 ] );
+		addCell( meterPoints[ 0 ][ 0 ], meterPoints[ 0 ][ 1 ] );
 
-		for( let i = 1; i < p.length; i++ )
+		for( let i = 1; i < meterPoints.length; i++ )
 		{
-			const dx = p[ i ][ 0 ] - p[ i - 1 ][ 0 ];
-			const dy = p[ i ][ 1 ] - p[ i - 1 ][ 1 ];
-			const d  = Math.hypot( dx, dy );
+			const deltaX = meterPoints[ i ][ 0 ] - meterPoints[ i - 1 ][ 0 ];
+			const deltaY = meterPoints[ i ][ 1 ] - meterPoints[ i - 1 ][ 1 ];
+			const gap    = Math.hypot( deltaX, deltaY );
 
 			// A jump over 250 m is a GPS gap: break the sequence instead of drawing a straight line
-			if( d > 250 )
+			if( gap > 250 )
 			{
-				seq.push( null );
-				prev = null;
+				cellSequence.push( null );
+				previousKey = null;
 
-				add( p[ i ][ 0 ], p[ i ][ 1 ] );
+				addCell( meterPoints[ i ][ 0 ], meterPoints[ i ][ 1 ] );
 
 				continue;
 			}
 
 			// Half-cell steps so no cell is skipped between distant points
-			const n = Math.max( 1, Math.ceil( d / ( cell / 2 ) ) );
+			const steps = Math.max( 1, Math.ceil( gap / ( cellSize / 2 ) ) );
 
-			for( let s = 1; s <= n; s++ )
+			for( let step = 1; step <= steps; step++ )
 			{
-				add( p[ i - 1 ][ 0 ] + ( dx * s ) / n, p[ i - 1 ][ 1 ] + ( dy * s ) / n );
+				addCell( meterPoints[ i - 1 ][ 0 ] + ( deltaX * step ) / steps, meterPoints[ i - 1 ][ 1 ] + ( deltaY * step ) / steps );
 			}
 		}
 		// Each link counts once per track, so pacing over the same ground is still one walk
 		const seen = new Set();
 
-		for( let i = 1; i < seq.length; i++ )
+		for( let i = 1; i < cellSequence.length; i++ )
 		{
-			const a = seq[ i - 1 ];
-			const b = seq[ i ];
+			const fromCell = cellSequence[ i - 1 ];
+			const toCell   = cellSequence[ i ];
 
-			if( ( a === null ) || ( b === null ) )
+			if( ( fromCell === null ) || ( toCell === null ) )
 			{
 				continue;
 			}
 
-			const ka = a.join( ',' );
-			const kb = b.join( ',' );
-			const k  = ( ka < kb ) ? ka + '|' + kb : kb + '|' + ka;
+			const fromKey = fromCell.join( ',' );
+			const toKey   = toCell.join( ',' );
+			const linkKey = ( fromKey < toKey ) ? fromKey + '|' + toKey : toKey + '|' + fromKey;
 
-			if( seen.has( k ) === false )
+			if( seen.has( linkKey ) === false )
 			{
-				seen.add( k );
+				seen.add( linkKey );
 
-				const before = counts.get( k );
+				const previousCount = counts.get( linkKey );
 
-				counts.set( k, ( before === undefined ) ? 1 : before + 1 );
+				counts.set( linkKey, ( previousCount === undefined ) ? 1 : previousCount + 1 );
 			}
 		}
 	}
-	const toLL  = ( c ) => [ lat0 + ( ( c[ 1 ] + 0.5 ) * cell ) / ky, lng0 + ( ( c[ 0 ] + 0.5 ) * cell ) / kx ];
-	const edges = [];
+	const cellToLatLng = ( cell ) => [ originLat + ( ( cell[ 1 ] + 0.5 ) * cellSize ) / metersPerDegLat, originLng + ( ( cell[ 0 ] + 0.5 ) * cellSize ) / metersPerDegLng ];
+	const edges        = [];
 
-	let max = 0;
-	let km  = 0;
+	let maxPasses   = 0;
+	let totalMeters = 0;
 
-	for( const [ k, n ] of counts )
+	for( const [ linkKey, passes ] of counts )
 	{
-		if( n < minPasses )
+		if( passes < minPasses )
 		{
 			continue;
 		}
 
-		const [ a, b ] = k.split( '|' ).map( ( s ) => s.split( ',' ).map( Number ) );
-		const A        = toLL( a );
-		const B        = toLL( b );
+		const [ fromCell, toCell ] = linkKey.split( '|' ).map( ( text ) => text.split( ',' ).map( Number ) );
+		const fromLatLng           = cellToLatLng( fromCell );
+		const toLatLng             = cellToLatLng( toCell );
 
-		edges.push( { a: A, b: B, n: n } );
+		edges.push( { from: fromLatLng, to: toLatLng, passes: passes } );
 
-		max = Math.max( max, n );
+		maxPasses = Math.max( maxPasses, passes );
 
-		// Despite the name, this accumulates meters
-		km += hav( A, B );
+		totalMeters += distanceMeters( fromLatLng, toLatLng );
 	}
 
-	return { edges: edges, max: max, km: km };
+	return { edges: edges, maxPasses: maxPasses, totalMeters: totalMeters };
 }
 
 // Yellow (few passes) to red (many passes)
-const ramp = ( n, max ) =>
+const rampColor = ( passes, maxPasses ) =>
 {
-	const t = ( max <= settings.minp ) ? 1 : ( n - settings.minp ) / ( max - settings.minp );
+	const ratio = ( maxPasses <= settings.minp ) ? 1 : ( passes - settings.minp ) / ( maxPasses - settings.minp );
 
-	return `hsl(${50 - 50 * t},90%,${52 - 8 * t}%)`;
+	return `hsl(${50 - 50 * ratio},90%,${52 - 8 * ratio}%)`;
 };
 
 // Single redraw entry point; call it after any data change
@@ -653,104 +646,104 @@ function refresh()
 	rawLayer.clearLayers();
 	pathLayer.clearLayers();
 
-	const vis = areaTracks().filter( ( t ) => ( t.visible !== false ) );
+	const visibleTracks = areaTracks().filter( ( track ) => ( track.visible !== false ) );
 
 	if( settings.showRaw === true )
 	{
-		vis.forEach( ( t ) =>
+		visibleTracks.forEach( ( track ) =>
 			L.polyline
 				(
-					t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ),
+					track.pts.map( ( point ) => [ point[ 0 ], point[ 1 ] ] ),
 					{ color: '#3a6ea5', weight: 4, opacity: 0.85 }
 				).addTo( rawLayer )
 		);
 	}
 
-	const r   = computePaths( vis, +settings.cell, +settings.minp );
-	lastEdges = r.edges;
+	const paths = computePaths( visibleTracks, +settings.cell, +settings.minp );
+	lastEdges   = paths.edges;
 
-	for( const e of r.edges )
+	for( const edge of paths.edges )
 	{
-		L.polyline( [ e.a, e.b ],
+		L.polyline( [ edge.from, edge.to ],
 			{
-				color   : ramp( e.n, r.max ),
-				weight  : 3 + Math.min( 6, e.n - settings.minp ),
+				color   : rampColor( edge.passes, paths.maxPasses ),
+				weight  : 3 + Math.min( 6, edge.passes - settings.minp ),
 				opacity : 0.95,
 				lineCap : 'round',
 			} )
-			.bindTooltip( e.n + ' passes' )
+			.bindTooltip( edge.passes + ' passes' )
 			.addTo( pathLayer );
 	}
 
-	$( '#sPaths' ).textContent = ( r.km / 1000 ).toFixed( 2 );
+	$( '#sPaths' ).textContent = ( paths.totalMeters / 1000 ).toFixed( 2 );
 
 	renderAreas();
 	renderList();
 }
 
 // Outlined heart when off, filled when on; always red through the ic-fav color
-const setFav = ( b, on ) =>
+const setFavoriteIcon = ( button, isOn ) =>
 {
-	b.firstChild.className = 'codicon codicon-heart' + ( ( on === true ) ? '-filled' : '' ) + ' ico ic-fav';
+	button.firstChild.className = 'codicon codicon-heart' + ( ( isOn === true ) ? '-filled' : '' ) + ' ico ic-fav';
 
-	b.setAttribute( 'aria-pressed', on );
+	button.setAttribute( 'aria-pressed', isOn );
 };
 
 // Icon-only button. icon is a codicon name, tone picks the color class (ic-<tone> in styles.css)
 const iconButton = ( icon, tone, label ) =>
 {
-	const b = document.createElement( 'button' );
-	const g = document.createElement( 'span' );
+	const button = document.createElement( 'button' );
+	const glyph  = document.createElement( 'span' );
 
-	g.className = 'codicon codicon-' + icon + ' ico ic-' + tone;
-	b.className = 'sm';
-	b.title     = label;
+	glyph.className  = 'codicon codicon-' + icon + ' ico ic-' + tone;
+	button.className = 'sm';
+	button.title     = label;
 
-	b.setAttribute( 'aria-label', label );
-	b.appendChild( g );
-	return b;
+	button.setAttribute( 'aria-label', label );
+	button.appendChild( glyph );
+	return button;
 };
 
 // Move dialog: one radio per other area. Tapping an area moves the track at once; Cancel, the
 // backdrop or the Android back button closes it without changes
-const moveDlg = document.createElement( 'dialog' );
+const moveDialog = document.createElement( 'dialog' );
 
-moveDlg.className = 'moveDlg';
+moveDialog.className = 'moveDlg';
 
-moveDlg.onclick = ( e ) =>
+moveDialog.onclick = ( event ) =>
 {
-	if( e.target === moveDlg )
+	if( event.target === moveDialog )
 	{
-		moveDlg.close();
+		moveDialog.close();
 	}
 };
 
-document.body.appendChild( moveDlg );
+document.body.appendChild( moveDialog );
 
-const moveTrack = ( t, a ) =>
+const moveTrack = ( track, targetArea ) =>
 {
-	t.area    = a.id;
-	t.updated = Date.now();
+	track.area    = targetArea.id;
+	track.updated = Date.now();
 
 	autoSync();
-	save( KEY, tracks );
+	save( TRACKS_KEY, tracks );
 	refresh();
-	toast( 'Moved to ' + a.name );
+	toast( 'Moved to ' + targetArea.name );
 };
 
-const pickArea = ( t, others ) =>
+const pickArea = ( track, otherAreas ) =>
 {
 	const body     = document.createElement( 'div' );
 	body.className = 'moveBody';
 
 	const title       = document.createElement( 'p' );
 	title.className   = 'moveTitle';
-	title.textContent = 'Move "' + t.name + '" to:';
+	title.textContent = 'Move "' + track.name + '" to:';
 
 	const list     = document.createElement( 'div' );
 	list.className = 'moveList';
 
-	for( const a of others )
+	for( const area of otherAreas )
 	{
 		const row = document.createElement( 'label' );
 
@@ -762,12 +755,12 @@ const pickArea = ( t, others ) =>
 		radio.name = 'moveArea';
 
 		const text       = document.createElement( 'span' );
-		text.textContent = a.name + ' (' + tracks.filter( ( x ) => ( x.area === a.id ) ).length + ')';
+		text.textContent = area.name + ' (' + tracks.filter( ( other ) => ( other.area === area.id ) ).length + ')';
 
 		radio.onchange = () =>
 		{
-			moveDlg.close();
-			moveTrack( t, a );
+			moveDialog.close();
+			moveTrack( track, area );
 		};
 
 		row.append( radio, text );
@@ -777,191 +770,189 @@ const pickArea = ( t, others ) =>
 	const cancel       = document.createElement( 'button' );
 	cancel.className   = 'sm moveCancel';
 	cancel.textContent = 'Cancel';
-	cancel.onclick     = () => moveDlg.close();
+	cancel.onclick     = () => moveDialog.close();
 
 	body.append( title, list, cancel );
-	moveDlg.replaceChildren( body );
-	moveDlg.showModal();
+	moveDialog.replaceChildren( body );
+	moveDialog.showModal();
 };
 
 function renderList()
 {
-	const el = $( '#list' );
+	const listElement = $( '#list' );
 
 	if( areaTracks().length === 0 )
 	{
-		el.innerHTML = '<p class="hint">No tracks in this area yet. Press Start, walk, then Stop. Paths appear in orange→red where several walks overlap.</p>';
+		listElement.innerHTML = '<p class="hint">No tracks in this area yet. Press Start, walk, then Stop. Paths appear in orange→red where several walks overlap.</p>';
 		return;
 	}
 
-	el.innerHTML = '';
-	const list   = areaTracks().slice().reverse();
+	listElement.innerHTML = '';
+	const newestFirst     = areaTracks().slice().reverse();
 
-	for( const t of list )
+	for( const track of newestFirst )
 	{
 		const row     = document.createElement( 'div' );
 		row.className = 'track';
 
-		const cb   = document.createElement( 'input' );
-		cb.type    = 'checkbox';
-		cb.checked = ( t.visible !== false );
+		const checkbox   = document.createElement( 'input' );
+		checkbox.type    = 'checkbox';
+		checkbox.checked = ( track.visible !== false );
 
-		cb.setAttribute( 'aria-label', 'Show ' + t.name + ' on map' );
+		checkbox.setAttribute( 'aria-label', 'Show ' + track.name + ' on map' );
 
-		cb.className = 'track-check';
+		checkbox.className = 'track-check';
 
 		const info     = document.createElement( 'div' );
 		info.className = 'track-info';
 
-		const name       = document.createElement( 'div' );
-		name.className   = 'track-name';
-		name.textContent = t.name;
+		const nameLine       = document.createElement( 'div' );
+		nameLine.className   = 'track-name';
+		nameLine.textContent = track.name;
 
-		const date     = document.createElement( 'div' );
-		date.className = 'track-date';
+		const dateLine     = document.createElement( 'div' );
+		dateLine.className = 'track-date';
 
-		if( ( Number.isFinite( t.start ) === true ) && ( t.start > 0 ) )
+		if( ( Number.isFinite( track.start ) === true ) && ( track.start > 0 ) )
 		{
-			date.textContent = new Date( t.start * 1000 ).toLocaleString( [], { dateStyle: 'short', timeStyle: 'short' } );
+			dateLine.textContent = new Date( track.start * 1000 ).toLocaleString( [], { dateStyle: 'short', timeStyle: 'short' } );
 		}
 
-		const meta     = document.createElement( 'div' );
-		meta.className = 'track-meta';
+		const metaLine     = document.createElement( 'div' );
+		metaLine.className = 'track-meta';
 
-		const secs       = trackSecs( t );
-		meta.textContent = fmtKm( trackLen( t.pts ) ) + ' · ' + t.pts.length + ' pts' + ( ( secs > 0 ) ? ' · ' + fmtDur( secs ) : '' );
+		const seconds        = trackSeconds( track );
+		metaLine.textContent = formatKm( trackLength( track.pts ) ) + ' · ' + track.pts.length + ' pts' + ( ( seconds > 0 ) ? ' · ' + formatDuration( seconds ) : '' );
 
-		info.append( name, date, meta );
+		info.append( nameLine, dateLine, metaLine );
 
 		const actions     = document.createElement( 'div' );
 		actions.className = 'track-actions';
 
-		const z  = iconButton( 'location', 'zoom', 'Find track on map' );
-		const mv = iconButton( 'move', 'move', 'Move track to another area' );
-		const rn = iconButton( 'edit', 'rename', 'Rename track' );
-		const d  = iconButton( 'trash', 'delete', 'Delete track' );
-		const f  = iconButton( 'heart', 'fav', 'Favorite' );
+		const zoomButton     = iconButton( 'location', 'zoom', 'Find track on map' );
+		const moveButton     = iconButton( 'move', 'move', 'Move track to another area' );
+		const renameButton   = iconButton( 'edit', 'rename', 'Rename track' );
+		const deleteButton   = iconButton( 'trash', 'delete', 'Delete track' );
+		const favoriteButton = iconButton( 'heart', 'fav', 'Favorite' );
 
-		setFav( f, ( t.favorite === true ) );
+		setFavoriteIcon( favoriteButton, ( track.favorite === true ) );
 
-		actions.append( z, mv, rn, d, f );
-		row.append( cb, info, actions );
+		actions.append( zoomButton, moveButton, renameButton, deleteButton, favoriteButton );
+		row.append( checkbox, info, actions );
 
-		mv.onclick = () =>
+		moveButton.onclick = () =>
 		{
-			const others = areas.filter( ( a ) => ( a.id !== settings.area ) );
+			const otherAreas = areas.filter( ( area ) => ( area.id !== settings.area ) );
 
-			if( others.length === 0 )
+			if( otherAreas.length === 0 )
 			{
 				return toast( 'Create another area first' );
 			}
 
-			pickArea( t, others );
+			pickArea( track, otherAreas );
 		};
 
-		rn.onclick = () =>
+		renameButton.onclick = () =>
 		{
-			const n = prompt( 'Rename track:', t.name );
+			const newName = prompt( 'Rename track:', track.name );
 
-			if( ( n !== null ) && ( n.trim() !== '' ) )
+			if( ( newName !== null ) && ( newName.trim() !== '' ) )
 			{
-				t.name    = n.trim();
-				t.updated = Date.now();
+				track.name    = newName.trim();
+				track.updated = Date.now();
 
-				save( KEY, tracks );
+				save( TRACKS_KEY, tracks );
 				refresh();
 				autoSync();
 			}
 		};
 
-		cb.onchange = () =>
+		checkbox.onchange = () =>
 		{
-			t.visible = cb.checked;
+			track.visible = checkbox.checked;
 
-			save( KEY, tracks );
+			save( TRACKS_KEY, tracks );
 			refresh();
 		};
 
-		f.onclick = () =>
+		favoriteButton.onclick = () =>
 		{
-			t.favorite   = ( t.favorite !== true );
-			t.favUpdated = Date.now();
+			track.favorite   = ( track.favorite !== true );
+			track.favUpdated = Date.now();
 
-			setFav( f, t.favorite );
-			save( KEY, tracks );
+			setFavoriteIcon( favoriteButton, track.favorite );
+			save( TRACKS_KEY, tracks );
 			autoSync();
 		};
 
-		z.onclick = () => map.fitBounds( L.latLngBounds( t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) ), { padding: [ 30, 30 ] } );
+		zoomButton.onclick = () => map.fitBounds( L.latLngBounds( track.pts.map( ( point ) => [ point[ 0 ], point[ 1 ] ] ) ), { padding: [ 30, 30 ] } );
 
-		d.onclick = () =>
+		deleteButton.onclick = () =>
 		{
 			if( confirm( 'Delete this track?' ) === true )
 			{
-				tombstone( 'track', t.id );
+				tombstone( 'track', track.id );
 
-				tracks = tracks.filter( ( x ) => ( x !== t ) );
+				tracks = tracks.filter( ( other ) => ( other !== track ) );
 
-				save( KEY, tracks );
+				save( TRACKS_KEY, tracks );
 				refresh();
 				autoSync();
 			}
 		};
 
-		el.appendChild( row );
+		listElement.appendChild( row );
 	}
 }
 
 // Sets the visible flag of every track in this area; "rule" decides the value per track
 const checkTracks = ( rule ) =>
 {
-	for( const t of areaTracks() )
+	for( const track of areaTracks() )
 	{
-		t.visible = rule( t );
+		track.visible = rule( track );
 	}
 
-	save( KEY, tracks );
+	save( TRACKS_KEY, tracks );
 	refresh();
 };
 
 $( '#chkAll' ).onclick  = () => checkTracks( () => true );
 $( '#chkNone' ).onclick = () => checkTracks( () => false );
-$( '#chkFav' ).onclick  = () => checkTracks( ( t ) => ( t.visible !== false ) || ( t.favorite === true ) );
+$( '#chkFav' ).onclick  = () => checkTracks( ( track ) => ( track.visible !== false ) || ( track.favorite === true ) );
 
-// Data tab footer: app.js version plus the cache names created by sw.js. Two caches listed means
-// an update is waiting; a version that differs from the expected one means a stale file
 // Data tab footer: the version comes from SHELL in sw.js (the only place to bump it)
 // Two versions listed means an update is waiting, ie, a version that differs from the expected one means a stale file
 const showVersion = async () =>
 {
-	let cache = 'none';
+	let versionText = 'none';
 	try
 	{
-		const names = ( await caches.keys() ).filter( ( k ) => k.startsWith( 'trailweaver-shell-' ) );
-		cache       = ( names.length > 0 ) ? names.map( ( k ) => k.slice( 18 ) ).join( ', ' ) : 'none';
+		const cacheNames = ( await caches.keys() ).filter( ( cacheName ) => cacheName.startsWith( 'trailweaver-shell-' ) );
+		versionText      = ( cacheNames.length > 0 ) ? cacheNames.map( ( cacheName ) => cacheName.slice( 18 ) ).join( ', ' ) : 'none';
 	}
 	catch
 	{
-		cache = 'unavailable';
+		versionText = 'unavailable';
 	}
 
-	$( '#ver' ).textContent = 'Version: ' + cache;
+	$( '#ver' ).textContent = 'Version: ' + versionText;
 };
 
 // Fit the map to the current area, or to the device position if the area has no tracks
 function fitAll()
 {
-	const pts = areaTracks().flatMap( ( t ) => t.pts.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) );
+	const allPoints = areaTracks().flatMap( ( track ) => track.pts.map( ( point ) => [ point[ 0 ], point[ 1 ] ] ) );
 
-	if( pts.length > 0 )
+	if( allPoints.length > 0 )
 	{
-		map.fitBounds( L.latLngBounds( pts ), { padding: [ 30, 30 ] } );
+		map.fitBounds( L.latLngBounds( allPoints ), { padding: [ 30, 30 ] } );
 	}
-	else if( GEO === true )
+	else if( HAS_GEO === true )
 	{
 		navigator.geolocation.getCurrentPosition
 			(
-				( p ) => map.setView( [ p.coords.latitude, p.coords.longitude ], 15 ),
+				( position ) => map.setView( [ position.coords.latitude, position.coords.longitude ], 15 ),
 				() => undefined,
 				{ timeout: 8000 }
 			);
@@ -969,22 +960,22 @@ function fitAll()
 }
 
 // The value label follows the slider while dragging; save and redraw only on release
-function bindSetting( id, key, vid, unit )
+function bindSetting( sliderId, key, labelId, unit )
 {
-	const el = $( '#' + id );
-	const v  = $( '#' + vid );
+	const slider = $( '#' + sliderId );
+	const label  = $( '#' + labelId );
 
-	el.value      = settings[ key ];
-	v.textContent = settings[ key ] + unit;
-	el.oninput    = () =>
+	slider.value      = settings[ key ];
+	label.textContent = settings[ key ] + unit;
+	slider.oninput    = () =>
 	{
-		settings[ key ] = +el.value;
-		v.textContent   = el.value + unit;
+		settings[ key ]   = +slider.value;
+		label.textContent = slider.value + unit;
 	};
 
-	el.onchange = () =>
+	slider.onchange = () =>
 	{
-		save( SET, settings );
+		save( SETTINGS_KEY, settings );
 		refresh();
 	};
 }
@@ -999,85 +990,85 @@ $( '#pathReset' ).onclick = () =>
 	bindSetting( 'cell', 'cell', 'vCell', ' m' );
 	bindSetting( 'minp', 'minp', 'vMin', '×' );
 	bindSetting( 'maxacc', 'maxacc', 'vAcc', ' m' );
-	save( SET, settings );
+	save( SETTINGS_KEY, settings );
 	refresh();
 	toast( 'Path settings reset' );
 };
 
 $( '#showRaw' ).checked  = settings.showRaw;
-$( '#showRaw' ).onchange = ( e ) =>
+$( '#showRaw' ).onchange = ( event ) =>
 {
-	settings.showRaw = e.target.checked;
+	settings.showRaw = event.target.checked;
 
-	save( SET, settings );
+	save( SETTINGS_KEY, settings );
 	refresh();
 };
 
 // Tab button data-t="x" shows the element with id "t-x"
-for( const b of document.querySelectorAll( '.tabs button' ) )
+for( const tabButton of document.querySelectorAll( '.tabs button' ) )
 {
-	b.onclick = () =>
+	tabButton.onclick = () =>
 	{
-		for( const x of document.querySelectorAll( '.tabs button,.tab' ) )
+		for( const element of document.querySelectorAll( '.tabs button,.tab' ) )
 		{
-			x.classList.remove( 'active' );
+			element.classList.remove( 'active' );
 		}
 
-		b.classList.add( 'active' );
+		tabButton.classList.add( 'active' );
 
-		$( '#t-' + b.dataset.t ).classList.add( 'active' );
+		$( '#t-' + tabButton.dataset.t ).classList.add( 'active' );
 	};
 }
 
-function download( name, text, type )
+function download( fileName, text, type )
 {
-	const a    = document.createElement( 'a' );
-	a.href     = URL.createObjectURL( new Blob( [ text ], { type: type } ) );
-	a.download = name;
+	const link    = document.createElement( 'a' );
+	link.href     = URL.createObjectURL( new Blob( [ text ], { type: type } ) );
+	link.download = fileName;
 
-	a.click();
-	setTimeout( () => URL.revokeObjectURL( a.href ), 1000 );
+	link.click();
+	setTimeout( () => URL.revokeObjectURL( link.href ), 1000 );
 }
 
 // Each track gets <type>trailweaver:AreaName</type> so importing the file restores its area
-const exportGpx = ( list, fname ) =>
+const exportGpx = ( trackList, fileName ) =>
 {
-	if( list.length === 0 )
+	if( trackList.length === 0 )
 	{
 		return toast( 'Nothing to export' );
 	}
 
-	const esc   = ( s ) => String( s ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' );
-	const parts = [];
+	const escapeXml = ( text ) => String( text ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' );
+	const trackXml  = [];
 
-	for( const t of list )
+	for( const track of trackList )
 	{
-		const owner    = areas.find( ( a ) => ( a.id === t.area ) );
+		const owner    = areas.find( ( area ) => ( area.id === track.area ) );
 		const areaName = ( owner !== undefined ) ? owner.name : '';
 
-		let seg = '';
+		let segment = '';
 
-		for( const p of t.pts )
+		for( const point of track.pts )
 		{
-			const hasTime = Number.isFinite( p[ 2 ] ) === true && p[ 2 ] !== 0;
-			const time    = ( hasTime === true ) ? `<time>${new Date( p[ 2 ] * 1000 ).toISOString()}</time>` : '';
+			const hasTime = ( Number.isFinite( point[ 2 ] ) === true ) && ( point[ 2 ] !== 0 );
+			const timeTag = ( hasTime === true ) ? `<time>${new Date( point[ 2 ] * 1000 ).toISOString()}</time>` : '';
 
-			seg += `<trkpt lat = "${p[ 0 ]}" lon="${p[ 1 ]}">${time}</trkpt>`;
+			segment += `<trkpt lat = "${point[ 0 ]}" lon="${point[ 1 ]}">${timeTag}</trkpt>`;
 		}
-		parts.push( `<trk><name>${esc( t.name )}</name><type>trailweaver:${esc( areaName )}</type><trkseg>${seg}</trkseg></trk>` );
+		trackXml.push( `<trk><name>${escapeXml( track.name )}</name><type>trailweaver:${escapeXml( areaName )}</type><trkseg>${segment}</trkseg></trk>` );
 	}
 
-	const x = parts.join( '\n' );
+	const body = trackXml.join( '\n' );
 
 	download
 		(
-			fname,
-			`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Trailweaver" xmlns="http://www.topografix.com/GPX/1/1">\n${x}\n</gpx>`,
+			fileName,
+			`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Trailweaver" xmlns="http://www.topografix.com/GPX/1/1">\n${body}\n</gpx>`,
 			'application/gpx+xml'
 		);
 };
 
-const safeName = () => curArea().name.replace( /[^\p{L}\p{N}]+/gu, '_' );
+const safeName = () => currentArea().name.replace( /[^\p{L}\p{N}]+/gu, '_' );
 
 $( '#exGpx' ).onclick = () => exportGpx( areaTracks(), 'trailweaver-' + safeName() + '.gpx' );
 $( '#exAll' ).onclick = () => exportGpx( tracks, 'trailweaver-all-areas.gpx' );
@@ -1090,88 +1081,88 @@ $( '#exGeo' ).onclick = () =>
 		return toast( 'No paths yet – lower the pass threshold?' );
 	}
 
-	const features = lastEdges.map( ( e ) =>
+	const features = lastEdges.map( ( edge ) =>
 	( {
 		type       : 'Feature',
-		properties : { passes: e.n },
+		properties : { passes: edge.passes },
 		geometry   :
 		{
 			type: 'LineString',
 			coordinates: [
-				[ e.a[ 1 ], e.a[ 0 ] ],
-				[ e.b[ 1 ], e.b[ 0 ] ],
+				[ edge.from[ 1 ], edge.from[ 0 ] ],
+				[ edge.to[ 1 ], edge.to[ 0 ] ],
 			],
 		},
 	} ) );
 
-	const fc = { type: 'FeatureCollection', features: features };
+	const collection = { type: 'FeatureCollection', features: features };
 
 	download
 		(
 			'trailweaver-paths-' + safeName() + '.geojson',
-			JSON.stringify( fc ),
+			JSON.stringify( collection ),
 			'application/geo+json'
 		);
 };
 
 $( '#imp' ).onclick = () => $( '#file' ).click();
 
-$( '#file' ).onchange = async ( e ) =>
+$( '#file' ).onchange = async ( event ) =>
 {
 	let added = 0;
-	for( const f of e.target.files )
+	for( const file of event.target.files )
 	{
-		const doc  = new DOMParser().parseFromString( await f.text(), 'text/xml' );
-		const trks = doc.querySelectorAll( 'trk' );
+		const doc        = new DOMParser().parseFromString( await file.text(), 'text/xml' );
+		const trackNodes = doc.querySelectorAll( 'trk' );
 
-		for( let i = 0; i < trks.length; i++ )
+		for( let i = 0; i < trackNodes.length; i++ )
 		{
-			const trk = trks[ i ];
-			const pts = [];
+			const trackNode = trackNodes[ i ];
+			const pts       = [];
 
-			for( const p of trk.querySelectorAll( 'trkpt' ) )
+			for( const pointNode of trackNode.querySelectorAll( 'trkpt' ) )
 			{
-				const timeEl = p.querySelector( 'time' );
-				const secs   = ( timeEl !== null ) ? Math.round( Date.parse( timeEl.textContent ) / 1000 ) : 0;
+				const timeNode = pointNode.querySelector( 'time' );
+				const seconds  = ( timeNode !== null ) ? Math.round( Date.parse( timeNode.textContent ) / 1000 ) : 0;
 
-				pts.push( [ +p.getAttribute( 'lat' ), +p.getAttribute( 'lon' ), secs ] );
+				pts.push( [ +pointNode.getAttribute( 'lat' ), +pointNode.getAttribute( 'lon' ), seconds ] );
 			}
 
 			if( pts.length > 1 )
 			{
 				// Only our own "trailweaver:" marker may create areas; other apps use <type> for things like "hiking"
-				const typeEl = trk.querySelector( 'type' );
-				const ty     = ( typeEl !== null ) ? typeEl.textContent.trim()           : '';
-				const an     = ty.startsWith( 'trailweaver:' ) === true ? ty.slice( 12 ) : '';
+				const typeNode = trackNode.querySelector( 'type' );
+				const typeText = ( typeNode !== null ) ? typeNode.textContent.trim()                       : '';
+				const areaName = ( typeText.startsWith( 'trailweaver:' ) === true ) ? typeText.slice( 12 ) : '';
 
-				let ar;
+				let importArea;
 
-				if( an !== '' )
+				if( areaName !== '' )
 				{
-					ar = areas.find( ( a ) => ( a.name === an ) );
+					importArea = areas.find( ( area ) => ( area.name === areaName ) );
 
-					if( ar === undefined )
+					if( importArea === undefined )
 					{
-						ar = { id: 'a' + Date.now() + '_' + added, name: an, updated: Date.now() };
-						areas.push( ar );
+						importArea = { id: 'a' + Date.now() + '_' + added, name: areaName, updated: Date.now() };
+						areas.push( importArea );
 					}
 				}
 
-				const nameEl = trk.querySelector( 'name' );
-				let nm       = f.name;
+				const nameNode = trackNode.querySelector( 'name' );
+				let trackName  = file.name;
 
-				if( ( nameEl !== null ) && ( nameEl.textContent !== '' ) )
+				if( ( nameNode !== null ) && ( nameNode.textContent !== '' ) )
 				{
-					nm = nameEl.textContent;
+					trackName = nameNode.textContent;
 				}
 
 				// "+ added" keeps ids unique within one import
 				const track =
 				{
-					area    : ( ar !== undefined ) ? ar.id : settings.area,
+					area    : ( importArea !== undefined ) ? importArea.id : settings.area,
 					updated : Date.now(),
 					id      : Date.now() + added,
-					name    : nm + ( ( i > 0 ) ? ' #' + ( i + 1 ) : '' ),
+					name    : trackName + ( ( i > 0 ) ? ' #' + ( i + 1 ) : '' ),
 					start   : pts[ 0 ][ 2 ],
 					visible : true,
 					pts     : pts,
@@ -1183,11 +1174,10 @@ $( '#file' ).onchange = async ( e ) =>
 			}
 		}
 	}
-	e.target.value = '';
+	event.target.value = '';
 
-
-	save( KEY, tracks );
-	save( AREAS, areas );
+	save( TRACKS_KEY, tracks );
+	save( AREAS_KEY, areas );
 	refresh();
 	fitAll();
 	autoSync();
@@ -1196,13 +1186,13 @@ $( '#file' ).onchange = async ( e ) =>
 
 $( '#wipe' ).onclick = () =>
 {
-	const where = ( srv.token !== '' ) ? ', here and on the server' : ' on this device';
+	const where = ( server.token !== '' ) ? ', here and on the server' : ' on this device';
 
 	if( confirm( 'Delete ALL tracks in ALL areas' + where + '?' ) === true )
 	{
-		tracks.forEach( ( t ) => tombstone( 'track', t.id ) );
+		tracks.forEach( ( track ) => tombstone( 'track', track.id ) );
 		tracks = [];
-		save( KEY, tracks );
+		save( TRACKS_KEY, tracks );
 		refresh();
 		autoSync();
 	}
@@ -1211,10 +1201,10 @@ $( '#wipe' ).onclick = () =>
 // Adds 7 synthetic walks along one loose route; each wobbles randomly around it, like a person wandering
 $( '#demo' ).onclick = () =>
 {
-	const c  = map.getCenter();
-	const o  = [ c.lat, c.lng ];
-	const m  = 1 / 110540;
-	const mx = 1 / ( 111320 * Math.cos( ( o[ 0 ] * Math.PI ) / 180 ) );
+	const center         = map.getCenter();
+	const origin         = [ center.lat, center.lng ];
+	const degPerMeterLat = 1 / 110540;
+	const degPerMeterLng = 1 / ( 111320 * Math.cos( ( origin[ 0 ] * Math.PI ) / 180 ) );
 	const route =
 		[
 			[ -300, -200 ],
@@ -1224,40 +1214,40 @@ $( '#demo' ).onclick = () =>
 			[ 400, 150 ],
 		];
 
-	for( let w = 0; w < 7; w++ )
+	for( let walkIndex = 0; walkIndex < 7; walkIndex++ )
 	{
 		const pts = [];
-		let off   = [ 0, 0 ];
-		let t     = Math.round( Date.now() / 1000 ) - 86400 * ( 7 - w );
+		let drift = [ 0, 0 ];
+		let time  = Math.round( Date.now() / 1000 ) - 86400 * ( 7 - walkIndex );
 
 		for( let i = 1; i < route.length; i++ )
 		{
-			const a = route[ i - 1 ];
-			const b = route[ i ];
-			const n = Math.round( Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] ) / 5 );
+			const legStart = route[ i - 1 ];
+			const legEnd   = route[ i ];
+			const samples  = Math.round( Math.hypot( legEnd[ 0 ] - legStart[ 0 ], legEnd[ 1 ] - legStart[ 1 ] ) / 5 );
 
-			for( let s = 0; s < n; s++ )
+			for( let sample = 0; sample < samples; sample++ )
 			{
-				off =
+				drift =
 					[
-						off[ 0 ] * 0.93 + ( Math.random() - 0.5 ) * 9,
-						off[ 1 ] * 0.93 + ( Math.random() - 0.5 ) * 9,
+						drift[ 0 ] * 0.93 + ( Math.random() - 0.5 ) * 9,
+						drift[ 1 ] * 0.93 + ( Math.random() - 0.5 ) * 9,
 					];
 
-				const x = a[ 0 ] + ( ( b[ 0 ] - a[ 0 ] ) * s ) / n + off[ 0 ];
-				const y = a[ 1 ] + ( ( b[ 1 ] - a[ 1 ] ) * s ) / n + off[ 1 ];
+				const x = legStart[ 0 ] + ( ( legEnd[ 0 ] - legStart[ 0 ] ) * sample ) / samples + drift[ 0 ];
+				const y = legStart[ 1 ] + ( ( legEnd[ 1 ] - legStart[ 1 ] ) * sample ) / samples + drift[ 1 ];
 
-				t += 4;
+				time += 4;
 
-				pts.push( [ +( o[ 0 ] + y * m ).toFixed( 6 ), +( o[ 1 ] + x * mx ).toFixed( 6 ), t ] );
+				pts.push( [ +( origin[ 0 ] + y * degPerMeterLat ).toFixed( 6 ), +( origin[ 1 ] + x * degPerMeterLng ).toFixed( 6 ), time ] );
 			}
 		}
 		const track =
 		{
 			area    : settings.area,
 			updated : Date.now(),
-			id      : Date.now() + w,
-			name    : 'Demo walk ' + ( w + 1 ),
+			id      : Date.now() + walkIndex,
+			name    : 'Demo walk ' + ( walkIndex + 1 ),
 			start   : pts[ 0 ][ 2 ],
 			visible : true,
 			pts     : pts,
@@ -1265,7 +1255,7 @@ $( '#demo' ).onclick = () =>
 
 		tracks.push( track );
 	}
-	save( KEY, tracks );
+	save( TRACKS_KEY, tracks );
 	refresh();
 	fitAll();
 	toast( 'Demo walks added – paths emerge where they overlap' );
@@ -1273,33 +1263,32 @@ $( '#demo' ).onclick = () =>
 
 function renderAreas()
 {
-	const s     = $( '#area' );
-	s.innerHTML = '';
+	const select     = $( '#area' );
+	select.innerHTML = '';
 
-	for( const a of areas )
+	for( const area of areas )
 	{
-		const o       = document.createElement( 'option' );
-		o.value       = a.id;
-		o.textContent = a.name + ' (' + tracks.filter( ( t ) => ( t.area === a.id ) ).length + ')';
+		const option       = document.createElement( 'option' );
+		option.value       = area.id;
+		option.textContent = area.name + ' (' + tracks.filter( ( track ) => ( track.area === area.id ) ).length + ')';
 
-		if( a.id === settings.area )
+		if( area.id === settings.area )
 		{
-			o
-				.selected = true;
+			option.selected = true;
 		}
-		s.appendChild( o );
+		select.appendChild( option );
 	}
 }
 
 // A recording in progress follows into the new area
-function setArea( id )
+function setArea( areaId )
 {
-	settings.area = id;
-	save( SET, settings );
+	settings.area = areaId;
+	save( SETTINGS_KEY, settings );
 
-	if( current !== null )
+	if( activeWalk !== null )
 	{
-		current.area = id;
+		activeWalk.area = areaId;
 	}
 
 	refresh();
@@ -1308,28 +1297,28 @@ function setArea( id )
 
 function newArea( name )
 {
-	const a = { id: 'a' + Date.now(), name: name.trim(), updated: Date.now() };
+	const area = { id: 'a' + Date.now(), name: name.trim(), updated: Date.now() };
 
-	areas.push( a );
-	save( AREAS, areas );
-	setArea( a.id );
+	areas.push( area );
+	save( AREAS_KEY, areas );
+	setArea( area.id );
 	autoSync();
 }
 
 // Distance in meters to the nearest point of the given tracks (checks every 3rd point)
-const nearestM = ( list, ll ) =>
+const nearestMeters = ( trackList, latLng ) =>
 {
 	let best = Infinity;
 
-	for( const t of list )
+	for( const track of trackList )
 	{
-		for( let i = 0; i < t.pts.length; i += 3 )
+		for( let i = 0; i < track.pts.length; i += 3 )
 		{
-			const d = hav( ll, t.pts[ i ] );
+			const meters = distanceMeters( latLng, track.pts[ i ] );
 
-			if( d < best )
+			if( meters < best )
 			{
-				best = d;
+				best = meters;
 			}
 		}
 	}
@@ -1338,77 +1327,77 @@ const nearestM = ( list, ll ) =>
 
 // Runs at the first fix of a recording. More than 3 km from this area's tracks: offer the nearest
 // other area within 1.5 km, otherwise offer a new area. Declining keeps the current area
-function checkArea( ll )
+function checkArea( latLng )
 {
-	const mine = areaTracks();
+	const ownTracks = areaTracks();
 
-	if( ( mine.length === 0 ) || ( nearestM( mine, ll ) < 3000 ) )
+	if( ( ownTracks.length === 0 ) || ( nearestMeters( ownTracks, latLng ) < 3000 ) )
 	{
 		return;
 	}
 
-	const others = areas.filter( ( a ) => ( a.id !== settings.area ) );
-	const dists  = others.map( ( a ) =>
+	const otherAreas = areas.filter( ( area ) => ( area.id !== settings.area ) );
+	const distances  = otherAreas.map( ( area ) =>
 	( {
-		a: a,
-		d: nearestM(
-			tracks.filter( ( t ) => ( t.area === a.id ) ),
-			ll
+		area: area,
+		meters: nearestMeters(
+			tracks.filter( ( track ) => ( track.area === area.id ) ),
+			latLng
 		),
 	} ) );
 
-	const near = dists.filter( ( x ) => ( x.d < 1500 ) ).sort( ( x, y ) => x.d - y.d );
+	const nearby = distances.filter( ( entry ) => ( entry.meters < 1500 ) ).sort( ( first, second ) => first.meters - second.meters );
 
-	if( near.length > 0 )
+	if( nearby.length > 0 )
 	{
 		if(
 			confirm
 				(
 					'You are near "' +
-					near[ 0 ].a.name +
+					nearby[ 0 ].area.name +
 					'". Record there instead of "' +
-					curArea().name +
+					currentArea().name +
 					'"?'
 				) === true
 		)
 		{
-			setArea( near[ 0 ].a.id );
+			setArea( nearby[ 0 ].area.id );
 		}
 		return;
 	}
 
-	if( confirm( 'You are far from "' + curArea().name + '". Start a new area here?' ) === true )
+	if( confirm( 'You are far from "' + currentArea().name + '". Start a new area here?' ) === true )
 	{
-		const n = prompt( 'Name for the new area:', 'New area' );
+		const newName = prompt( 'Name for the new area:', 'New area' );
 
-		if( ( n !== null ) && ( n.trim() !== '' ) )
+		if( ( newName !== null ) && ( newName.trim() !== '' ) )
 		{
-			newArea( n );
+			newArea( newName );
 		}
 	}
 }
 
-$( '#area' ).onchange = ( e ) => setArea( e.target.value );
+$( '#area' ).onchange = ( event ) => setArea( event.target.value );
 
 $( '#aNew' ).onclick = () =>
 {
-	const n = prompt( 'Name for the new area:' );
+	const newName = prompt( 'Name for the new area:' );
 
-	if( ( n !== null ) && ( n.trim() !== '' ) )
+	if( ( newName !== null ) && ( newName.trim() !== '' ) )
 	{
-		newArea( n );
+		newArea( newName );
 	}
 };
 
 $( '#aRen' ).onclick = () =>
 {
-	const n = prompt( 'Rename area:', curArea().name );
+	const newName = prompt( 'Rename area:', currentArea().name );
 
-	if( ( n !== null ) && ( n.trim() !== '' ) )
+	if( ( newName !== null ) && ( newName.trim() !== '' ) )
 	{
-		curArea().name    = n.trim();
-		curArea().updated = Date.now();
-		save( AREAS, areas );
+		currentArea().name    = newName.trim();
+		currentArea().updated = Date.now();
+		save( AREAS_KEY, areas );
 		renderAreas();
 		autoSync();
 	}
@@ -1421,20 +1410,20 @@ $( '#aDel' ).onclick = () =>
 	{
 		return toast( 'Keep at least one area' );
 	}
-	const n = areaTracks().length;
+	const trackCount = areaTracks().length;
 
-	if( confirm( 'Delete "' + curArea().name + '" and its ' + n + ' track(s)?' ) === true )
+	if( confirm( 'Delete "' + currentArea().name + '" and its ' + trackCount + ' track(s)?' ) === true )
 	{
-		const id = settings.area;
+		const areaId = settings.area;
 
-		tracks.filter( ( t ) => ( t.area === id ) ).forEach( ( t ) => tombstone( 'track', t.id ) );
-		tombstone( 'area', id )
-			;
-		tracks = tracks.filter( ( t ) => ( t.area !== id ) );
-		areas  = areas.filter( ( a ) => ( a.id !== id ) );
+		tracks.filter( ( track ) => ( track.area === areaId ) ).forEach( ( track ) => tombstone( 'track', track.id ) );
+		tombstone( 'area', areaId );
 
-		save( KEY, tracks );
-		save( AREAS, areas );
+		tracks = tracks.filter( ( track ) => ( track.area !== areaId ) );
+		areas  = areas.filter( ( area ) => ( area.id !== areaId ) );
+
+		save( TRACKS_KEY, tracks );
+		save( AREAS_KEY, areas );
 		setArea( areas[ 0 ].id );
 		autoSync();
 	}
@@ -1443,33 +1432,34 @@ $( '#aDel' ).onclick = () =>
 // Optional sync with api.php; it does nothing until a token is entered. Each sync uploads items
 // changed since the last one, then merges what the server changed (newer "updated" wins)
 // Deletions travel as tombstones because a deleted item no longer exists to upload
-const SRV  = 'trailweaver.server.v1';
-const TOMB = 'trailweaver.tomb.v1';
+const SERVER_KEY     = 'trailweaver.server.v1';
+const TOMBSTONES_KEY = 'trailweaver.tomb.v1';
 
 // pull: server clock (ms) from the last sync, sent back as "since"
 // push: device clock (ms) when the last sync started; items updated after it are unsent
-let srv     = Object.assign( { url: '', token: '', pull: 0, push: 0 }, load( SRV, {} ) );
-let tomb    = load( TOMB, [] );
-let syncing = false;
+let server     = Object.assign( { url: '', token: '', pull: 0, push: 0 }, load( SERVER_KEY, {} ) );
+let tombstones = load( TOMBSTONES_KEY, [] );
+let isSyncing  = false;
 
 // Device ids are numbers, server ids are strings
-const same   = ( a, b ) => String( a ) === String( b );
-const srvUrl = () => srv.url.trim() !== '' ? srv.url.trim() : new URL( 'api.php', location.href ).href;
+const sameId    = ( first, second ) => ( String( first ) === String( second ) );
+const serverUrl = () => ( server.url.trim() !== '' ) ? server.url.trim() : new URL( 'api.php', location.href ).href;
 
-const setStatus = ( m ) =>
+const setStatus = ( message ) =>
 {
-	$( '#srvStatus' ).textContent = m;
+	$( '#srvStatus' ).textContent = message;
 };
 
-function tombstone( t, id )
+// The kind is stored under the key "t", which api.php reads
+function tombstone( kind, id )
 {
-	tomb.push( { t: t, id: String( id ), updated: Date.now() } );
-	save( TOMB, tomb );
+	tombstones.push( { t: kind, id: String( id ), updated: Date.now() } );
+	save( TOMBSTONES_KEY, tombstones );
 }
 
 const autoSync = () =>
 {
-	if( srv.token !== '' )
+	if( server.token !== '' )
 	{
 		syncNow( false );
 	}
@@ -1478,7 +1468,7 @@ const autoSync = () =>
 // "manual" is true when a button started the sync; only then are results shown as toasts
 async function syncNow( manual )
 {
-	if( srv.token === '' )
+	if( server.token === '' )
 	{
 		if( manual === true )
 		{
@@ -1488,13 +1478,13 @@ async function syncNow( manual )
 		return;
 	}
 
-	if( syncing === true )
+	if( isSyncing === true )
 	{
 		return;
 	}
 
 	// Never sync mid-recording
-	if( current !== null )
+	if( activeWalk !== null )
 	{
 		if( manual === true )
 		{
@@ -1503,7 +1493,7 @@ async function syncNow( manual )
 		return;
 	}
 
-	syncing = true;
+	isSyncing = true;
 
 	setStatus( 'Syncing…' );
 
@@ -1512,161 +1502,161 @@ async function syncNow( manual )
 
 	try
 	{
-		const dA   = areas.filter( ( a ) => updatedOf( a ) > srv.push );
-		const dT   = tracks.filter( ( t ) => updatedOf( t ) > srv.push );
-		const dD   = tomb.filter( ( d ) => ( d.updated > srv.push ) );
-		const dF   = tracks.filter( ( t ) => ( ( t.favUpdated === undefined ) ? 0 : t.favUpdated ) > srv.push );
-		const slim = ( t ) =>
+		const changedAreas     = areas.filter( ( area ) => updatedOf( area ) > server.push );
+		const changedTracks    = tracks.filter( ( track ) => updatedOf( track ) > server.push );
+		const deletions        = tombstones.filter( ( deletion ) => ( deletion.updated > server.push ) );
+		const changedFavorites = tracks.filter( ( track ) => ( ( track.favUpdated === undefined ) ? 0 : track.favUpdated ) > server.push );
+		const toPayload        = ( track ) =>
 		( {
-			id      : String( t.id ),
-			area    : t.area,
-			name    : t.name,
-			start   : Number.isFinite( t.start ) === true ? t.start : 0,
-			updated : t.updated,
-			pts     : t.pts,
+			id      : String( track.id ),
+			area    : track.area,
+			name    : track.name,
+			start   : ( Number.isFinite( track.start ) === true ) ? track.start : 0,
+			updated : track.updated,
+			pts     : track.pts,
 		} );
 
 		// Upload 20 tracks per request. Only the last request asks for the server's changes (since is
 		// set); earlier ones send since: null, meaning "store only"
 		const chunks = [];
 
-		for( let i = 0; i < dT.length; i += 20 )
+		for( let i = 0; i < changedTracks.length; i += 20 )
 		{
-			chunks.push( dT.slice( i, i + 20 ) );
+			chunks.push( changedTracks.slice( i, i + 20 ) );
 		}
 		if( chunks.length === 0 )
 		{
 			chunks.push( [] );
 		}
 
-		let res;
+		let reply;
 
 		for( let i = 0; i < chunks.length; i++ )
 		{
-			const first = ( i === 0 );
-			const last  = ( i === ( chunks.length - 1 ) );
+			const isFirst = ( i === 0 );
+			const isLast  = ( i === ( chunks.length - 1 ) );
 			const body =
 			{
-				since   : ( last === true ) ? srv.pull : null,
-				areas   : ( first === true ) ? dA : [],
-				deleted : ( first === true ) ? dD : [],
-				tracks  : chunks[ i ].map( slim ),
-				favs    : ( last === true ) ? dF.map( ( t ) => ( { id: String( t.id ), favorite: ( t.favorite === true ) } ) ) : [],
+				since   : ( isLast === true ) ? server.pull : null,
+				areas   : ( isFirst === true ) ? changedAreas : [],
+				deleted : ( isFirst === true ) ? deletions : [],
+				tracks  : chunks[ i ].map( toPayload ),
+				favs    : ( isLast === true ) ? changedFavorites.map( ( track ) => ( { id: String( track.id ), favorite: ( track.favorite === true ) } ) ) : [],
 			};
-			const r = await fetch( srvUrl(),
+			const httpResponse = await fetch( serverUrl(),
 				{
 					method  : 'POST',
-					headers : { 'Content-Type': 'application/json', 'X-TW-Token': srv.token },
+					headers : { 'Content-Type': 'application/json', 'X-TW-Token': server.token },
 					body    : JSON.stringify( body ),
 				} );
 
-			if( r.ok === false )
+			if( httpResponse.ok === false )
 			{
-				let msg = 'server error ' + r.status;
+				let errorMessage = 'server error ' + httpResponse.status;
 				try
 				{
-					const j = await r.json();
+					const errorBody = await httpResponse.json();
 
-					if( j.error !== undefined )
+					if( errorBody.error !== undefined )
 					{
-						msg = j.error;
+						errorMessage = errorBody.error;
 					}
 				}
 				catch
 				{
 					// The error body was not JSON
 				}
-				throw new Error( msg );
+				throw new Error( errorMessage );
 			}
 
-			res = await r.json();
+			reply = await httpResponse.json();
 		}
 		// Merge the server's changes. A deletion is ignored if the local copy is newer, and the last area is never removed
-		let changed    = false;
-		const srvAreas = ( res.areas === undefined ) ? [] : res.areas;
+		let changed       = false;
+		const serverAreas = ( reply.areas === undefined ) ? [] : reply.areas;
 
-		for( const a of srvAreas )
+		for( const serverArea of serverAreas )
 		{
-			const i = areas.findIndex( ( x ) => same( x.id, a.id ) );
+			const index = areas.findIndex( ( area ) => sameId( area.id, serverArea.id ) );
 
-			if( a.deleted === true )
+			if( serverArea.deleted === true )
 			{
-				if( ( i >= 0 ) && ( areas.length > 1 ) && ( updatedOf( areas[ i ] ) <= a.updated ) )
+				if( ( index >= 0 ) && ( areas.length > 1 ) && ( updatedOf( areas[ index ] ) <= serverArea.updated ) )
 				{
-					areas.splice( i, 1 );
+					areas.splice( index, 1 );
 
 					changed = true;
 				}
 			}
-			else if( i < 0 )
+			else if( index < 0 )
 			{
-				areas.push( { id: a.id, name: a.name, updated: a.updated } );
+				areas.push( { id: serverArea.id, name: serverArea.name, updated: serverArea.updated } );
 
 				changed = true;
 			}
-			else if( a.updated > updatedOf( areas[ i ] ) )
+			else if( serverArea.updated > updatedOf( areas[ index ] ) )
 			{
-				areas[ i ].name    = a.name;
-				areas[ i ].updated = a.updated;
-				changed            = true;
+				areas[ index ].name    = serverArea.name;
+				areas[ index ].updated = serverArea.updated;
+				changed                = true;
 			}
 		}
-		const srvTracks = ( res.tracks === undefined ) ? [] : res.tracks;
+		const serverTracks = ( reply.tracks === undefined ) ? [] : reply.tracks;
 
-		for( const t of srvTracks )
+		for( const serverTrack of serverTracks )
 		{
-			const i = tracks.findIndex( ( x ) => same( x.id, t.id ) );
+			const index = tracks.findIndex( ( track ) => sameId( track.id, serverTrack.id ) );
 
-			if( t.deleted === true )
+			if( serverTrack.deleted === true )
 			{
-				if( ( i >= 0 ) && ( updatedOf( tracks[ i ] ) <= t.updated ) )
+				if( ( index >= 0 ) && ( updatedOf( tracks[ index ] ) <= serverTrack.updated ) )
 				{
-					tracks.splice( i, 1 );
+					tracks.splice( index, 1 );
 
 					changed = true;
 				}
 			}
-			else if( i < 0 )
+			else if( index < 0 )
 			{
 				tracks.push
 					( {
-						id      : t.id,
-						area    : t.area,
-						name    : t.name,
-						start   : t.start,
+						id      : serverTrack.id,
+						area    : serverTrack.area,
+						name    : serverTrack.name,
+						start   : serverTrack.start,
 						visible : true,
-						updated : t.updated,
-						pts     : t.pts,
+						updated : serverTrack.updated,
+						pts     : serverTrack.pts,
 					} );
 
 				changed = true;
 			}
-			else if( t.updated > updatedOf( tracks[ i ] ) )
+			else if( serverTrack.updated > updatedOf( tracks[ index ] ) )
 			{
 				// Points never change after recording, so only these fields are updated
-				Object.assign( tracks[ i ], { area: t.area, name: t.name, updated: t.updated } );
+				Object.assign( tracks[ index ], { area: serverTrack.area, name: serverTrack.name, updated: serverTrack.updated } );
 
 				changed = true;
 			}
 		}
 
 		// The server returns the ids of all favorites; the flags follow it, except ones toggled during this sync
-		if( res.favs !== undefined )
+		if( reply.favs !== undefined )
 		{
-			const srvFavs = new Set( res.favs.map( String ) );
+			const serverFavorites = new Set( reply.favs.map( String ) );
 
-			for( const t of tracks )
+			for( const track of tracks )
 			{
-				if( ( ( t.favUpdated === undefined ) ? 0 : t.favUpdated ) > startedAt )
+				if( ( ( track.favUpdated === undefined ) ? 0 : track.favUpdated ) > startedAt )
 				{
 					continue;
 				}
 
-				const fav = srvFavs.has( String( t.id ) );
+				const isFavorite = serverFavorites.has( String( track.id ) );
 
-				if( ( t.favorite === true ) !== fav )
+				if( ( track.favorite === true ) !== isFavorite )
 				{
-					t.favorite = fav;
+					track.favorite = isFavorite;
 
 					changed = true;
 				}
@@ -1674,60 +1664,60 @@ async function syncNow( manual )
 		}
 
 		// Tracks whose area was deleted elsewhere move to the first area
-		for( const t of tracks )
+		for( const track of tracks )
 		{
-			if( areas.some( ( a ) => same( a.id, t.area ) ) === false )
+			if( areas.some( ( area ) => sameId( area.id, track.area ) ) === false )
 			{
-				t.area = areas[ 0 ].id;
+				track.area = areas[ 0 ].id;
 			}
 		}
 
-		if( areas.some( ( a ) => ( a.id === settings.area ) ) === false )
+		if( areas.some( ( area ) => ( area.id === settings.area ) ) === false )
 		{
 			settings.area = areas[ 0 ].id;
 
-			save( SET, settings );
+			save( SETTINGS_KEY, settings );
 		}
-		srv.pull = res.now;
-		srv.push = startedAt;
+		server.pull = reply.now;
+		server.push = startedAt;
 
-		save( SRV, srv );
-		save( KEY, tracks );
-		save( AREAS, areas );
+		save( SERVER_KEY, server );
+		save( TRACKS_KEY, tracks );
+		save( AREAS_KEY, areas );
 
 		if( changed === true )
 		{
 			refresh();
 		}
 
-		setStatus( 'Synced ' + new Date().toLocaleTimeString() + ' · sent ' + dT.length + ' track(s)' );
+		setStatus( 'Synced ' + new Date().toLocaleTimeString() + ' · sent ' + changedTracks.length + ' track(s)' );
 
 		if( manual === true )
 		{
 			toast( 'Synced' );
 		}
 	}
-	catch( e )
+	catch( error )
 	{
-		setStatus( 'Sync failed: ' + e.message );
+		setStatus( 'Sync failed: ' + error.message );
 
 		if( manual === true )
 		{
-			toast( 'Sync failed: ' + e.message );
+			toast( 'Sync failed: ' + error.message );
 		}
 	}
 	finally
 	{
-		syncing = false;
+		isSyncing = false;
 	}
 }
 
-$( '#srvUrl' ).value = srv.url;
-$( '#srvTok' ).value = srv.token;
+$( '#srvUrl' ).value = server.url;
+$( '#srvTok' ).value = server.token;
 
-if( srv.token !== '' )
+if( server.token !== '' )
 {
-	setStatus( 'Ready. Last sync: ' + ( ( srv.pull > 0 ) ? new Date( srv.pull ).toLocaleString() : 'never' ) );
+	setStatus( 'Ready. Last sync: ' + ( ( server.pull > 0 ) ? new Date( server.pull ).toLocaleString() : 'never' ) );
 }
 
 // Changing the server or token resets the markers so the next sync transfers everything
@@ -1736,15 +1726,15 @@ $( '#srvSave' ).onclick = () =>
 	const url   = $( '#srvUrl' ).value.trim();
 	const token = $( '#srvTok' ).value.trim();
 
-	if( ( url !== srv.url ) || ( token !== srv.token ) )
+	if( ( url !== server.url ) || ( token !== server.token ) )
 	{
-		srv.pull = 0;
-		srv.push = 0;
+		server.pull = 0;
+		server.push = 0;
 	}
-	srv.url   = url;
-	srv.token = token;
+	server.url   = url;
+	server.token = token;
 
-	save( SRV, srv );
+	save( SERVER_KEY, server );
 	syncNow( true );
 };
 
@@ -1753,32 +1743,32 @@ $( '#srvNow' ).onclick = () => syncNow( true );
 window.addEventListener( 'online', autoSync );
 
 // Boot. An unfinished recording left in storage means the app closed or crashed mid-walk
-const crashed = load( CUR, null );
-if( ( crashed !== null )
-	&& ( crashed.pts !== undefined )
-	&& ( crashed.pts.length > 1 )
-	&& confirm( 'Recover an unfinished recording (' + fmtKm( trackLen( crashed.pts ) ) + ')?' ) === true
+const unfinishedWalk = load( CURRENT_KEY, null );
+if( ( unfinishedWalk !== null )
+	&& ( unfinishedWalk.pts !== undefined )
+	&& ( unfinishedWalk.pts.length > 1 )
+	&& ( confirm( 'Recover an unfinished recording (' + formatKm( trackLength( unfinishedWalk.pts ) ) + ')?' ) === true )
 )
 {
-	if( areas.some( ( a ) => ( a.id === crashed.area ) ) === false )
+	if( areas.some( ( area ) => ( area.id === unfinishedWalk.area ) ) === false )
 	{
-		crashed.area = settings.area;
+		unfinishedWalk.area = settings.area;
 	}
 
-	crashed.updated = Date.now();
-	crashed.name    = walkName( crashed.area );
+	unfinishedWalk.updated = Date.now();
+	unfinishedWalk.name    = walkName( unfinishedWalk.area );
 
-	tracks.push( crashed );
-	save( KEY, tracks );
+	tracks.push( unfinishedWalk );
+	save( TRACKS_KEY, tracks );
 }
-localStorage.removeItem( CUR );
+localStorage.removeItem( CURRENT_KEY );
 
 refresh();
 fitAll();
 autoSync();
 showVersion();
 
-if( ( 'serviceWorker' in navigator ) === true ) 
+if( ( 'serviceWorker' in navigator ) === true )
 {
 	navigator.serviceWorker.register( 'sw.js' ).catch( () => undefined );
 }
