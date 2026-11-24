@@ -681,10 +681,10 @@ function refresh()
 	renderList();
 }
 
-// Outlined heart when off, filled when on; always red through the ic-fav color
+// Outlined star when off, filled when on; always red through the ic-fav color
 const setFavoriteIcon = ( button, isOn ) =>
 {
-	button.firstChild.className = 'codicon codicon-heart' + ( ( isOn === true ) ? '-filled' : '' ) + ' ico ic-fav';
+	button.firstChild.className = 'codicon codicon-' + ( isOn === true ? 'star-full' : 'star-empty' ) + ' ico ic-fav';
 
 	button.setAttribute( 'aria-pressed', isOn );
 };
@@ -833,7 +833,7 @@ function renderList()
 		const moveButton     = iconButton( 'move', 'move', 'Move track to another area' );
 		const renameButton   = iconButton( 'edit', 'rename', 'Rename track' );
 		const deleteButton   = iconButton( 'trash', 'delete', 'Delete track' );
-		const favoriteButton = iconButton( 'heart', 'fav', 'Favorite' );
+		const favoriteButton = iconButton( 'star-empty', 'fav', 'Favorite' );
 
 		setFavoriteIcon( favoriteButton, ( track.favorite === true ) );
 

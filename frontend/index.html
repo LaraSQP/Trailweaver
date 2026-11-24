@@ -96,14 +96,37 @@
 
 				<div id="t-tracks" class="tab active">
 					<div class="row trackBar">
-						<button class = "sm" id="chkAll">Check all</button>
-						<button class = "sm" id="chkNone">Uncheck all</button>
-						<button class = "sm" id="chkFav">Check favorites</button>
+						<button
+							class      = "sm icon-btn"
+							id         = "chkAll"
+							title      = "Check all"
+							aria-label = "Check all"
+						>
+							<span class="codicon codicon-check-all ico ic-locate"></span>
+						</button>
+
+						<button
+							class      = "sm icon-btn"
+							id         = "chkNone"
+							title      = "Uncheck all"
+							aria-label = "Uncheck all"
+						>
+							<span class="codicon codicon-clear-all ico ic-delete"></span>
+						</button>
+
+						<button
+							class      = "sm icon-btn"
+							id         = "chkFav"
+							title      = "Check favorites"
+							aria-label = "Check favorites"
+						>
+							<span class="codicon codicon-star-half ico ic-fav"></span>
+						</button>
 					</div>
 
 					<div id="list"></div>
 				</div>
-				
+
 				<div id="t-paths" class="tab">
 					<label class="s">
 						<span>Merge distance (cell size)<b id="vCell"></b></span>
